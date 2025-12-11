@@ -37,12 +37,12 @@ This tutorial demonstrates the complete data science lifecycle:
 Because Google Colab's free tier RAM is not sufficient to run the entire analysis in one notebook, we have split the project into 2 separate notebooks:
 
 1. **Notebook 1**: Data Collection → Preprocessing → EDA → Hypothesis Testing
-2. **Notebook 2**: Machine Learning Modeling and Deployment
+2. **Notebook 2**: Machine Learning Model Training and Deployment
 
 This split ensures smooth execution without memory errors.
 
 **Platform:**
-- Google Colab (what we have used)
+- Google Colab (required)
 - Google Account
 - Stable internet connection
 
@@ -52,7 +52,7 @@ This split ensures smooth execution without memory errors.
 
 **No manual installation needed.** Google Colab comes with most libraries pre-installed.
 
-If you encounter an error saying a library is not installed (e.g., `ModuleNotFoundError: No module named 'xgboost'`), install it directly in Colab. For example:
+If you encounter an error saying a library is not installed (e.g., `ModuleNotFoundError: No module named 'xgboost'`), install it directly in Colab:
 
 ```python
 !pip install xgboost
@@ -78,7 +78,7 @@ Common packages that may need installation:
 
 All required data files are available in this shared Google Drive folder:
 
-**Base Location of all files**: https://drive.google.com/drive/u/0/folders/13Qsasbw_tvR5IzkeL9_DdrsE2OzAg60d
+**Link**: https://drive.google.com/drive/u/0/folders/13Qsasbw_tvR5IzkeL9_DdrsE2OzAg60d
 
 This folder contains:
 - **Restaurant data** (4 files): Chipotle, Domino's, Papa John's menus and locations
@@ -130,14 +130,6 @@ This folder contains:
            └── zip_income_data.csv
    ```
 
-### Note on ZIP Code Income Data
-
-The `zip_income_data.csv` file has been pre-processed for you. Original source: US Census Bureau - https://data.census.gov/map?q=Income+by+Zip+code+tabulation+area&layer=VT_2023_860_Z2_PY_D1
-
-### Note on Minimum Wage Data
-
-Minimum wage data is scraped automatically by the notebook from the Department of Labor website (https://www.dol.gov/agencies/whd/mw-consolidated). No manual download needed.
-
 ---
 
 ## Running the Notebooks
@@ -146,13 +138,13 @@ Minimum wage data is scraped automatically by the notebook from the Department o
 
 Due to RAM limitations in Colab free tier, the project is split into two notebooks:
 
-**Notebook 1: Data Analysis** (Run first)
+**Notebook 1: Data Collection through Hypothesis Testing**
 - Sections: Data Collection → Preprocessing → EDA → Hypothesis Testing
 - Time: ~10-15 minutes
 - RAM: Fits within free tier limits
 
-**Notebook 2: Machine Learning** (Run second)
-- Sections: ML Model Training → Deployment
+**Notebook 2: Machine Learning Models**
+- Sections: ML Model Training → Performance Comparison → Deployment
 - Time: ~20-30 minutes with T4 GPU
 - RAM: Fits within free tier limits
 
@@ -161,7 +153,7 @@ Both notebooks can be downloaded from the GitHub repository:
 
 ---
 
-### Running Notebook 1: Data Analysis
+### Running Notebook 1: Data Collection through Hypothesis Testing
 
 **Step 1: Open in Google Colab**
 
@@ -198,7 +190,7 @@ Both notebooks can be downloaded from the GitHub repository:
 
 ---
 
-### Running Notebook 2: Machine Learning
+### Running Notebook 2: Machine Learning Models
 
 **Step 1: Open in Google Colab**
 
@@ -327,7 +319,7 @@ This is why we split into 2 notebooks. If you still get this error:
 
 ## Expected Results
 
-### Notebook 1: Data Analysis
+### Notebook 1: Data Collection through Hypothesis Testing
 
 **Section 4: EDA**
 - Dataset: 6,717 restaurants, 3,077 cities, 1,265 menu items
@@ -346,7 +338,7 @@ This is why we split into 2 notebooks. If you still get this error:
   - Brand effects: Domino's +$5.89, Papa John's +$6.69 vs Chipotle
 - H5: Paradoxical competition effect (+$0.042, R² = 0.019)
 
-### Notebook 2: Machine Learning
+### Notebook 2: Machine Learning Models
 
 **Model Performance:**
 - Linear Regression: MAE $3.31, R² 0.796
@@ -364,7 +356,9 @@ This is why we split into 2 notebooks. If you still get this error:
 All data sources are publicly available:
 
 **Restaurant Data** (provided in Google Drive):
-- Chipotle, Domino's, Papa John's
+- Chipotle: https://www.chipotle.com
+- Domino's: https://www.dominos.com
+- Papa John's: https://www.papajohns.com
 - Collected: July 2024
 
 **Minimum Wage** (auto-scraped by code):
@@ -372,12 +366,18 @@ All data sources are publicly available:
 
 **ZIP Code Income** (provided in Google Drive):
 - US Census Bureau: https://data.census.gov/map?q=Income+by+Zip+code+tabulation+area&layer=VT_2023_860_Z2_PY_D1
+- American Community Survey (2022)
 
-**Rural-Urban Codes** (provided in Google Drive):
-- USDA Economic Research Service
+**USDA Rural-Urban Codes** (provided in Google Drive):
+- USDA Economic Research Service: https://www.ers.usda.gov/data-products/rural-urban-continuum-codes/
+- Rural-Urban Continuum Codes (2023)
 
 **Regional Food Prices** (provided in Google Drive):
-- Bureau of Labor Statistics (West, South, Midwest, Northeast)
+- Bureau of Labor Statistics - Average Retail Food Prices by Region:
+  - West: https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandwest_table.htm
+  - South: https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandsouth_table.htm
+  - Midwest: https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandmidwest_table.htm
+  - Northeast: https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandnortheast_table.htm
 
 ---
 
@@ -386,8 +386,8 @@ All data sources are publicly available:
 GitHub: https://github.com/Akhil-Kambhatla/Akhil-kambhatla.github.io
 
 Contents:
-- Notebook 1: Data Analysis
-- Notebook 2: Machine Learning
+- Notebook 1: Data Collection through Hypothesis Testing
+- Notebook 2: Machine Learning Models
 - Data files (link to Google Drive)
 - README documentation
 
@@ -398,8 +398,8 @@ Contents:
 If you use this project for academic work:
 
 ```
-Akhil Kambhatla. (2025). The Geography of Fast Food Pricing: Economic Determinants 
-of Menu Prices Across America. 
+Akhil Kambhatla, Mokshda Gangrade, Vyom Agarwal. (2025).
+The Geography of Fast Food Pricing: Economic Determinants of Menu Prices Across America. 
 GitHub: https://github.com/Akhil-Kambhatla/Akhil-kambhatla.github.io
 ```
 
