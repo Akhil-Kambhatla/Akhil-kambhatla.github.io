@@ -23,9 +23,6 @@ This tutorial demonstrates the complete data science lifecycle:
 - **Data Integration**: Merging with US Census income data, DOL minimum wage data, and BLS regional food prices
 - **Statistical Analysis**: 5 hypothesis tests using ANOVA and regression
 - **Machine Learning**: 5 predictive models (Linear Regression, Ridge, XGBoost, CatBoost, Neural Network)
-- **Deployment**: Production-ready inference pipeline
-
-**Key Finding**: Fast-food pricing is product-driven (what you buy, which brand) rather than market-driven (local economics), with ML models achieving 98.6% R² compared to 7.7% from economic variables alone.
 
 ---
 
@@ -45,7 +42,7 @@ Because Google Colab's free tier RAM is not sufficient to run the entire analysi
 This split ensures smooth execution without memory errors.
 
 **Platform:**
-- Google Colab (required)
+- Google Colab (what we have used)
 - Google Account
 - Stable internet connection
 
@@ -55,7 +52,7 @@ This split ensures smooth execution without memory errors.
 
 **No manual installation needed.** Google Colab comes with most libraries pre-installed.
 
-If you encounter an error saying a library is not installed (e.g., `ModuleNotFoundError: No module named 'xgboost'`), install it directly in Colab:
+If you encounter an error saying a library is not installed (e.g., `ModuleNotFoundError: No module named 'xgboost'`), install it directly in Colab. For example:
 
 ```python
 !pip install xgboost
