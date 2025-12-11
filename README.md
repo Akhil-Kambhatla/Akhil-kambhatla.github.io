@@ -78,7 +78,7 @@ Common packages that may need installation:
 
 All required data files are available in this shared Google Drive folder:
 
-**Link**: https://drive.google.com/drive/u/0/folders/13Qsasbw_tvR5IzkeL9_DdrsE2OzAg60d
+**Base Location of all files**: https://drive.google.com/drive/u/0/folders/13Qsasbw_tvR5IzkeL9_DdrsE2OzAg60d
 
 This folder contains:
 - **Restaurant data** (4 files): Chipotle, Domino's, Papa John's menus and locations
