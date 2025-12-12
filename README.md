@@ -20,9 +20,10 @@ A comprehensive data science tutorial analyzing how local economic conditions, m
 
 This tutorial demonstrates the complete data science lifecycle:
 - **Data Collection**: Web scraping from Chipotle, Domino's, Papa John's, and minimum wage data
-- **Data Integration**: Merging with US Census income data, DOL minimum wage data, and BLS regional food prices
+- **Data Preprocessing and Integration**: Merging with US Census income data, DOL minimum wage data, and BLS regional food prices
 - **Statistical Analysis**: 5 hypothesis tests using ANOVA and regression
 - **Machine Learning**: 5 predictive models (Linear Regression, Ridge, XGBoost, CatBoost, Neural Network)
+- **Insights and Interpretation**: Answering our research questions
 
 ---
 
