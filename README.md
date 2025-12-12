@@ -41,11 +41,6 @@ Because Google Colab's free tier RAM is not sufficient to run the entire analysi
 
 This split ensures smooth execution without memory errors.
 
-**Platform:**
-- Google Colab (required)
-- Google Account
-- Stable internet connection
-
 ---
 
 ## Installation
@@ -85,40 +80,20 @@ This folder contains:
 - **USDA rural-urban codes** (1 file)
 - **Regional food retail prices** (4 files): West, South, Midwest, Northeast regions
 - **US ZIP codes** (1 file): All ZIP codes for mapping
+- **All Dataset file taht we store post processing.
+**Total: 11 data files**
 
-**Total: 10 data files**
-
-### Step 2: Download Files to Your Computer
+### Step 2: Add files to your Drive
 
 1. Click the Google Drive link above
-2. Select all files (click first file, hold Shift, click last file)
-3. Right-click → Download
-4. A ZIP file will be created and downloaded
-5. Extract the ZIP file on your computer
+2. Right click on folder, then Organize and then Add shortcut to your Drive
 
-### Step 3: Upload to Your Personal Google Drive
 
-1. Open your Google Drive: https://drive.google.com
-
-2. Create this folder structure:
-   ```
-   My Drive/
-   └── 602_project/
-       └── Data/
-   ```
-
-3. Upload all 10 files:
-   - We have divided the Data into 2 parts - Data 1 and Data 2 (both of them being zip files)
-   - Decompress them and download all the files locally (for the time being)
-   - Navigate to `My Drive/602_project/Data/`
-   - Click "+ New" → "File upload"
-   - Select all files
-   - Wait for upload to complete
-
+***IMP***
 4. Your final structure should be:
    ```
    My Drive/
-   └── 602_project/
+   └── [folder_name(if any)]/
        └── Data/
            ├── ChipotleMenuByLocation.csv
            ├── ChipotleLocations.csv
@@ -135,6 +110,11 @@ This folder contains:
 ---
 
 ## Running the Notebooks
+
+***Note: Please add the path to your Drive folder after mounting it to the colab in the First Cell of both files***
+```
+base_location = "/content/drive/MyDrive/[folder where you add Data]"
+```
 
 ### Important: Two-Notebook Structure
 
@@ -164,24 +144,16 @@ Both notebooks can be downloaded from the GitHub repository:
 3. Click "File" → "Upload notebook"
 4. Select the notebook file
 
-**Step 2: Set Runtime (Recommended)**
 
-1. Click "Runtime" → "Change runtime type"
-2. Hardware accelerator: "GPU" → Select "T4 GPU"
-3. Click "Save"
-
-**Step 3: Mount Google Drive**
-
-1. Run Cell 10 (Google Drive mount cell)
-2. Click "Connect to Google Drive"
-3. Allow permissions
-4. Wait for "Mounted at /content/drive"
-
-**Step 4: Run All Cells**
-
-1. Click "Runtime" → "Run all"
-2. The notebook will execute all sections in order
-3. Expected time: ~10-15 minutes
+**Step 2: Run all code**
+1. Change the first cell according to your drive ```base_location = "/content/drive/MyDrive/[folder where you add Data]"```
+2. Click "Runtime" → "Run all"
+3. The notebook will execute all sections in order
+4. While running Google Drive mount cell
+5. Click "Connect to Google Drive"
+6. Allow permissions
+7. Wait for "Mounted at /content/drive"
+8. Expected time: ~10-15 minutes
 
 **What You'll See:**
 - Dataset statistics (6,717 restaurants, 3,077 cities)
@@ -206,11 +178,9 @@ Both notebooks can be downloaded from the GitHub repository:
 3. **Important**: GPU is highly recommended for this notebook
 4. Click "Save"
 
-**Step 3: Mount Google Drive**
+**Step 3: Run All Cells**
 
 Same as Notebook 1 - run the Drive mount cell
-
-**Step 4: Run All Cells**
 
 1. Click "Runtime" → "Run all"
 2. The notebook will:
@@ -229,93 +199,6 @@ Same as Notebook 1 - run the Drive mount cell
 **Expected Time:**
 - With T4 GPU: ~20-30 minutes
 - Without GPU: ~60-90 minutes (not recommended)
-
----
-
-## Troubleshooting
-
-### Issue 1: FileNotFoundError
-
-**Error**: `FileNotFoundError: [Errno 2] No such file or directory`
-
-**Solution**:
-1. Check that all 10 files are in `My Drive/602_project/Data/`
-2. Verify file names match exactly (case-sensitive)
-3. Re-mount Google Drive (run the mount cell again)
-4. Check folder structure: `My Drive/602_project/Data/` (not `MyDrive` or other variations)
-
----
-
-### Issue 2: ModuleNotFoundError
-
-**Error**: `ModuleNotFoundError: No module named 'package_name'`
-
-**Solution**:
-Install the missing package in a code cell:
-
-```python
-!pip install package_name
-```
-
-Example for common packages:
-```python
-!pip install xgboost catboost transformers folium
-```
-
-Then restart runtime:
-- Runtime → Restart runtime
-- Re-run all cells
-
----
-
-### Issue 3: Out of Memory / Session Crashed
-
-**Error**: "Your session crashed after using all available RAM"
-
-**Solution**:
-This is why we split into 2 notebooks. If you still get this error:
-
-1. Make sure you're running the correct notebook (1 or 2, not combined)
-2. Use GPU runtime: Runtime → Change runtime type → GPU (T4)
-3. Restart runtime and try again: Runtime → Restart runtime
-4. Close other browser tabs to free memory
-
----
-
-### Issue 4: Google Drive Won't Mount
-
-**Error**: Can't connect to Google Drive
-
-**Solution**:
-1. Click the folder icon in left sidebar
-2. Click "Mount Drive" button
-3. Allow permissions when prompted
-4. Wait for "Mounted at /content/drive" message
-5. If still failing, restart runtime and try again
-
----
-
-### Issue 5: Slow BERT Embedding Generation
-
-**Issue**: Cell generating BERT embeddings taking very long
-
-**Solution**:
-1. Make sure you're using T4 GPU runtime
-2. Check GPU is active: Runtime → View runtime type (should show "GPU T4")
-3. If on CPU, expect 20-30 minutes (this is normal)
-4. Progress bar will show you it's working
-
----
-
-### Issue 6: Minimum Wage Data Not Loading
-
-**Error**: Error when scraping minimum wage data
-
-**Solution**:
-1. Check internet connection
-2. Retry the cell (sometimes temporary network issue)
-3. The code scrapes from: https://www.dol.gov/agencies/whd/mw-consolidated
-4. If website is down or changed structure, open a GitHub issue
 
 ---
 
