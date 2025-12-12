@@ -12110,1617 +12110,6 @@ Residual          22826.498075  3719.0        NaN           NaN
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="6.-Predictive-Modeling-with-Machine-Learning">6. Predictive Modeling with Machine Learning<a class="anchor-link" href="#6.-Predictive-Modeling-with-Machine-Learning">¶</a></h2><p>Having tested statistical relationships in Section 5, we now build predictive models to forecast menu prices. Our hypothesis testing found that economic variables (income, minimum wage, brand) explain only <strong>7.7% of price variance</strong> (H4). Machine learning can capture non-linear patterns, feature interactions, and text data (via BERT embeddings on menu item names) to achieve much higher predictive accuracy.</p>
-<p><strong>Success Criteria:</strong></p>
-<ul>
-<li>Target: MAE &lt; $1.50 (predictions within $1.50 of actual price)</li>
-<li>Target: R² &gt; 0.80 (explain 80%+ of variance)</li>
-</ul>
-<p><strong>Models We'll Train:</strong></p>
-<ol>
-<li>Linear Regression (baseline)</li>
-<li>Ridge Regression (regularized baseline)</li>
-<li>XGBoost (gradient boosting)</li>
-<li>CatBoost (gradient boosting with categorical handling)</li>
-<li>Neural Network (deep learning)</li>
-</ol>
-<p><strong>Evaluation Metrics:</strong></p>
-<ul>
-<li><strong>MAE</strong> (Mean Absolute Error): Average prediction error in dollars - lower is better</li>
-<li><strong>RMSE</strong> (Root Mean Squared Error): Penalizes large errors more heavily - lower is better</li>
-<li><strong>R²</strong>: Proportion of variance explained (0 to 1) - higher is better</li>
-</ul>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Data-Preparation">Data Preparation<a class="anchor-link" href="#Data-Preparation">¶</a></h3><p>We prepare data carefully to avoid <strong>data leakage</strong> - where test set information influences training.</p>
-<p><strong>Key Steps:</strong></p>
-<ol>
-<li><strong>Regional Food Prices</strong>: Merge BLS regional food cost data (control variable for cost-of-living)</li>
-<li><strong>BERT Embeddings</strong>: Encode menu item text into 128-dimensional vectors using BERT-tiny</li>
-<li><strong>Grouped Split</strong>: Keep all items from same restaurant-city in one set (train OR test, never both)</li>
-<li><strong>Target-Based Features</strong>: Compute chain_avg_price, city_avg_price from training data only</li>
-</ol>
-<p>This prevents leakage while creating powerful predictive features.</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="n">usda_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">"/content/drive/MyDrive/602_project/Data/Ruralurbancontinuumcodes2023.csv"</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">'latin1'</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">process_region_food_file</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">region_name</span><span class="p">):</span>
-    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-
-    <span class="c1"># Clean Prices: convert to numeric</span>
-    <span class="n">df</span><span class="p">[</span><span class="s2">"Prices"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_numeric</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"Prices"</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
-
-    <span class="c1"># Drop rows with missing or blank prices</span>
-    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s2">"Prices"</span><span class="p">])</span>
-
-    <span class="c1"># Compute mean price</span>
-    <span class="n">mean_price</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"Prices"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-
-    <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
-        <span class="s2">"region"</span><span class="p">:</span> <span class="p">[</span><span class="n">region_name</span><span class="p">],</span>
-        <span class="s2">"avg_food_price_region"</span><span class="p">:</span> <span class="p">[</span><span class="n">mean_price</span><span class="p">]</span>
-    <span class="p">})</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p>Regional food prices vary from $4.25 (South) to $4.78 (West), providing a control for general cost-of-living differences across regions.</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="n">region_list</span> <span class="o">=</span> <span class="p">[]</span>
-
-<span class="n">region_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">process_region_food_file</span><span class="p">(</span><span class="s2">"/content/drive/MyDrive/602_project/Data/Food_retail_prices_Midwest_region_US.csv"</span><span class="p">,</span> <span class="s2">"Midwest"</span><span class="p">))</span>
-<span class="n">region_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">process_region_food_file</span><span class="p">(</span><span class="s2">"/content/drive/MyDrive/602_project/Data/Food_retail_prices_Northeast_region_US.csv"</span><span class="p">,</span> <span class="s2">"Northeast"</span><span class="p">))</span>
-<span class="n">region_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">process_region_food_file</span><span class="p">(</span><span class="s2">"/content/drive/MyDrive/602_project/Data/Food_retail_prices_South_region_US.csv"</span><span class="p">,</span> <span class="s2">"South"</span><span class="p">))</span>
-<span class="n">region_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">process_region_food_file</span><span class="p">(</span><span class="s2">"/content/drive/MyDrive/602_project/Data/Food_retail_prices_West_region_US.csv"</span><span class="p">,</span> <span class="s2">"West"</span><span class="p">))</span>
-
-<span class="n">region_food_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">region_list</span><span class="p">,</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="n">region_food_df</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell-outputWrapper">
-<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
-</div>
-<div class="jp-OutputArea jp-Cell-outputArea">
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>      region  avg_food_price_region
-0    Midwest               4.647784
-1  Northeast               4.514029
-2      South               4.247593
-3       West               4.784927
-</pre>
-</div>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="n">Accuracy_table</span> <span class="o">=</span> <span class="p">[]</span>
-<span class="n">device</span> <span class="o">=</span> <span class="s2">"cuda"</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">"cpu"</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.pipeline</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pipeline</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">transformers.models.bert.modeling_bert</span><span class="w"> </span><span class="kn">import</span> <span class="n">BertModel</span>
-<span class="c1"># ======================================================</span>
-<span class="c1"># Load full dataset (ALL rows)</span>
-<span class="c1"># ======================================================</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">all_dataset_df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-
-<span class="c1"># --------------------------</span>
-<span class="c1"># Add region</span>
-<span class="c1"># --------------------------</span>
-<span class="n">region_map</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"ME"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"NH"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"VT"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"MA"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"RI"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"CT"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span>
-    <span class="s2">"NY"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"NJ"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"PA"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span>
-
-    <span class="s2">"OH"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"MI"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"IN"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"IL"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"WI"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"MN"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"IA"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span>
-    <span class="s2">"MO"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"ND"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"SD"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"NE"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"KS"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span>
-
-    <span class="s2">"DE"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"MD"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"DC"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"VA"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"WV"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"NC"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"SC"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span>
-    <span class="s2">"GA"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"FL"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"KY"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"TN"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"AL"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"MS"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"AR"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span>
-    <span class="s2">"LA"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"TX"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"OK"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span>
-
-    <span class="s2">"MT"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"ID"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"WY"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"CO"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"NM"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"AZ"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span>
-    <span class="s2">"UT"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"NV"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"WA"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"OR"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"CA"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"AK"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"HI"</span><span class="p">:</span><span class="s2">"West"</span>
-<span class="p">}</span>
-
-<span class="n">df</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"state"</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">region_map</span><span class="p">)</span>
-
-<span class="c1"># Drop junk columns if they exist</span>
-<span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"Unnamed: 0"</span><span class="p">,</span> <span class="s2">"restaurant_id"</span><span class="p">]:</span>
-    <span class="k">if</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="n">col</span><span class="p">])</span>
-
-<span class="c1"># --------------------------</span>
-<span class="c1"># Clean target &amp; base categoricals</span>
-<span class="c1"># --------------------------</span>
-<span class="n">df</span><span class="p">[</span><span class="s2">"price"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_numeric</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">"price"</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s2">"price"</span><span class="p">])</span>
-
-<span class="n">df</span><span class="p">[</span><span class="s2">"restaurant_name"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"restaurant_name"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-<span class="n">df</span><span class="p">[</span><span class="s2">"item_type"</span><span class="p">]</span>       <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"item_type"</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="s2">"Unknown"</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-<span class="n">df</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span>          <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="s2">"Unknown"</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-<span class="n">df</span><span class="p">[</span><span class="s2">"state"</span><span class="p">]</span>           <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"state"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-<span class="n">df</span><span class="p">[</span><span class="s2">"city"</span><span class="p">]</span>            <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"city"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-<span class="n">df</span><span class="p">[</span><span class="s2">"menu_item"</span><span class="p">]</span>       <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"menu_item"</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-
-<span class="c1"># --------------------------</span>
-<span class="c1"># Merge avg food price per region (from region_food_df)</span>
-<span class="c1"># region_food_df must have columns: ['region', 'avg_food_price_region']</span>
-<span class="c1"># --------------------------</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">region_food_df</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">"region"</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s2">"left"</span><span class="p">)</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># BERT-tiny embeddings for menu_item (no label leakage)</span>
-<span class="c1"># ======================================================</span>
-<span class="n">bert_model_name</span> <span class="o">=</span> <span class="s2">"prajjwal1/bert-tiny"</span>  <span class="c1"># 2-layer, hidden size=128</span>
-<span class="n">device</span> <span class="o">=</span> <span class="s2">"cuda"</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">"cpu"</span>
-
-<span class="n">tokenizer</span>  <span class="o">=</span> <span class="n">AutoTokenizer</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">bert_model_name</span><span class="p">)</span>
-<span class="n">bert_model</span> <span class="o">=</span> <span class="n">AutoModel</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">bert_model_name</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-<span class="n">bert_model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
-
-<span class="n">unique_menu</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"menu_item"</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"Unique menu_item count:"</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">unique_menu</span><span class="p">))</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">encode_menu_items_bert</span><span class="p">(</span><span class="n">texts</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">):</span>
-    <span class="n">all_embs</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">texts</span><span class="p">),</span> <span class="n">batch_size</span><span class="p">):</span>
-        <span class="n">batch</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">texts</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="n">batch_size</span><span class="p">])</span>
-        <span class="n">enc</span> <span class="o">=</span> <span class="n">tokenizer</span><span class="p">(</span>
-            <span class="n">batch</span><span class="p">,</span>
-            <span class="n">padding</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">truncation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">max_length</span><span class="o">=</span><span class="n">max_length</span><span class="p">,</span>
-            <span class="n">return_tensors</span><span class="o">=</span><span class="s2">"pt"</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-
-        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-            <span class="n">outputs</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="o">**</span><span class="n">enc</span><span class="p">)</span>
-            <span class="n">cls_emb</span> <span class="o">=</span> <span class="n">outputs</span><span class="o">.</span><span class="n">last_hidden_state</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># (B, H)</span>
-            <span class="n">cls_emb</span> <span class="o">=</span> <span class="n">cls_emb</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
-            <span class="n">all_embs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cls_emb</span><span class="p">)</span>
-
-        <span class="k">del</span> <span class="n">enc</span><span class="p">,</span> <span class="n">outputs</span><span class="p">,</span> <span class="n">cls_emb</span>
-        <span class="k">if</span> <span class="n">device</span> <span class="o">==</span> <span class="s2">"cuda"</span><span class="p">:</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">empty_cache</span><span class="p">()</span>
-
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">all_embs</span><span class="p">)</span>
-
-<span class="n">unique_embs</span> <span class="o">=</span> <span class="n">encode_menu_items_bert</span><span class="p">(</span><span class="n">unique_menu</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
-<span class="n">emb_dim</span> <span class="o">=</span> <span class="n">unique_embs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"Embedding dim:"</span><span class="p">,</span> <span class="n">emb_dim</span><span class="p">)</span>  <span class="c1"># should be 128 for bert-tiny</span>
-
-<span class="n">menu_emb_lookup</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
-    <span class="n">unique_embs</span><span class="p">,</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"menu_emb_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">emb_dim</span><span class="p">)]</span>
-<span class="p">)</span>
-<span class="n">menu_emb_lookup</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">"menu_item"</span><span class="p">,</span> <span class="n">unique_menu</span><span class="p">)</span>
-
-<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">menu_emb_lookup</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">"menu_item"</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s2">"left"</span><span class="p">)</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Define group key and do GROUPED split (restaurant+city)</span>
-<span class="c1"># ======================================================</span>
-<span class="n">df</span><span class="p">[</span><span class="s2">"rest_city_group"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"restaurant_name"</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"||"</span> <span class="o">+</span> <span class="n">df</span><span class="p">[</span><span class="s2">"city"</span><span class="p">]</span>
-
-<span class="n">groups</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"rest_city_group"</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
-<span class="n">y_full</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">values</span>
-
-<span class="n">gss</span> <span class="o">=</span> <span class="n">GroupShuffleSplit</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-<span class="n">train_idx</span><span class="p">,</span> <span class="n">test_idx</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">gss</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">y_full</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="n">groups</span><span class="p">))</span>
-
-<span class="n">df_train</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">train_idx</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-<span class="n">df_test</span>  <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">test_idx</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"Train rows:"</span><span class="p">,</span> <span class="n">df_train</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"Test rows:"</span><span class="p">,</span> <span class="n">df_test</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Numeric features + fill from TRAIN medians</span>
-<span class="c1"># ======================================================</span>
-<span class="n">numeric_cols</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"min_wage"</span><span class="p">,</span> <span class="s2">"income"</span><span class="p">,</span> <span class="s2">"latitude"</span><span class="p">,</span> <span class="s2">"longitude"</span><span class="p">,</span> <span class="s2">"avg_food_price_region"</span><span class="p">]</span>
-<span class="k">if</span> <span class="s2">"zip_int"</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-    <span class="n">numeric_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"zip_int"</span><span class="p">)</span>
-
-<span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">numeric_cols</span><span class="p">:</span>
-    <span class="k">for</span> <span class="n">subset</span> <span class="ow">in</span> <span class="p">(</span><span class="n">df_train</span><span class="p">,</span> <span class="n">df_test</span><span class="p">):</span>
-        <span class="n">subset</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_numeric</span><span class="p">(</span><span class="n">subset</span><span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
-
-<span class="n">numeric_medians</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="n">df_train</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">median</span><span class="p">()</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">numeric_cols</span><span class="p">}</span>
-
-<span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">numeric_cols</span><span class="p">:</span>
-    <span class="n">df_train</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="n">numeric_medians</span><span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">df_test</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="n">numeric_medians</span><span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># TARGET-BASED aggregations (computed ONLY from TRAIN)</span>
-<span class="c1">#    chain_avg_price, city_avg_price, region_avg_price</span>
-<span class="c1"># ======================================================</span>
-<span class="n">chain_mean</span>  <span class="o">=</span> <span class="n">df_train</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"restaurant_name"</span><span class="p">)[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="n">city_mean</span>   <span class="o">=</span> <span class="n">df_train</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"city"</span><span class="p">)[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="n">region_mean</span> <span class="o">=</span> <span class="n">df_train</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">"region"</span><span class="p">)[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="n">global_mean</span> <span class="o">=</span> <span class="n">df_train</span><span class="p">[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-
-<span class="k">for</span> <span class="n">subset</span> <span class="ow">in</span> <span class="p">(</span><span class="n">df_train</span><span class="p">,</span> <span class="n">df_test</span><span class="p">):</span>
-    <span class="n">subset</span><span class="p">[</span><span class="s2">"chain_avg_price"</span><span class="p">]</span>  <span class="o">=</span> <span class="n">subset</span><span class="p">[</span><span class="s2">"restaurant_name"</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">chain_mean</span><span class="p">)</span>
-    <span class="n">subset</span><span class="p">[</span><span class="s2">"city_avg_price"</span><span class="p">]</span>   <span class="o">=</span> <span class="n">subset</span><span class="p">[</span><span class="s2">"city"</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">city_mean</span><span class="p">)</span>
-    <span class="n">subset</span><span class="p">[</span><span class="s2">"region_avg_price"</span><span class="p">]</span> <span class="o">=</span> <span class="n">subset</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">region_mean</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"chain_avg_price"</span><span class="p">,</span> <span class="s2">"city_avg_price"</span><span class="p">,</span> <span class="s2">"region_avg_price"</span><span class="p">]:</span>
-        <span class="n">subset</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="n">global_mean</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-<span class="c1"># add these to numeric feature list</span>
-<span class="n">numeric_cols</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">"chain_avg_price"</span><span class="p">,</span> <span class="s2">"city_avg_price"</span><span class="p">,</span> <span class="s2">"region_avg_price"</span><span class="p">]</span>
-
-<span class="c1"># save aggregates for inference later</span>
-<span class="n">price_agg_dicts</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"chain_mean_price"</span><span class="p">:</span> <span class="n">chain_mean</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
-    <span class="s2">"city_mean_price"</span><span class="p">:</span> <span class="n">city_mean</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
-    <span class="s2">"region_mean_price"</span><span class="p">:</span> <span class="n">region_mean</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
-    <span class="s2">"global_mean_price"</span><span class="p">:</span> <span class="n">global_mean</span><span class="p">,</span>
-<span class="p">}</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Label encode categoricals (fit on train+test to avoid unseen issues)</span>
-<span class="c1">#    (no label leakage: encoders do NOT use price)</span>
-<span class="c1"># ======================================================</span>
-<span class="n">cat_cols</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"restaurant_name"</span><span class="p">,</span> <span class="s2">"item_type"</span><span class="p">,</span> <span class="s2">"region"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"city"</span><span class="p">]</span>
-<span class="n">label_encoders</span> <span class="o">=</span> <span class="p">{}</span>
-
-<span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cat_cols</span><span class="p">:</span>
-    <span class="n">le</span> <span class="o">=</span> <span class="n">LabelEncoder</span><span class="p">()</span>
-    <span class="n">le</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">df_train</span><span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">df_test</span><span class="p">[</span><span class="n">col</span><span class="p">]],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
-    <span class="n">df_train</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">le</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">df_train</span><span class="p">[</span><span class="n">col</span><span class="p">])</span>
-    <span class="n">df_test</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>  <span class="o">=</span> <span class="n">le</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">df_test</span><span class="p">[</span><span class="n">col</span><span class="p">])</span>
-    <span class="n">label_encoders</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">le</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Build X, y and feature_cols</span>
-<span class="c1"># ======================================================</span>
-<span class="n">emb_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"menu_emb_"</span><span class="p">)]</span>
-
-<span class="n">feature_cols</span> <span class="o">=</span> <span class="p">[]</span>
-<span class="n">feature_cols</span> <span class="o">+=</span> <span class="n">cat_cols</span>
-<span class="n">feature_cols</span> <span class="o">+=</span> <span class="n">numeric_cols</span>
-<span class="n">feature_cols</span> <span class="o">+=</span> <span class="n">emb_cols</span>
-
-<span class="n">X_train</span> <span class="o">=</span> <span class="n">df_train</span><span class="p">[</span><span class="n">feature_cols</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">X_test</span>  <span class="o">=</span> <span class="n">df_test</span><span class="p">[</span><span class="n">feature_cols</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">y_train</span> <span class="o">=</span> <span class="n">df_train</span><span class="p">[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">y_test</span>  <span class="o">=</span> <span class="n">df_test</span><span class="p">[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"Shape X_train:"</span><span class="p">,</span> <span class="n">X_train</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"Shape X_test :"</span><span class="p">,</span> <span class="n">X_test</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell-outputWrapper">
-<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
-</div>
-<div class="jp-OutputArea jp-Cell-outputArea">
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr" tabindex="0">
-<pre>/usr/local/lib/python3.12/dist-packages/huggingface_hub/utils/_auth.py:94: UserWarning: 
-The secret `HF_TOKEN` does not exist in your Colab secrets.
-To authenticate with the Hugging Face Hub, create a token in your settings tab (https://huggingface.co/settings/tokens), set it as secret in your Google Colab and restart your session.
-You will be able to reuse this secret in all of your notebooks.
-Please note that authentication is recommended but still optional to access public models or datasets.
-  warnings.warn(
-</pre>
-</div>
-</div>
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>Unique menu_item count: 1265
-Embedding dim: 128
-</pre>
-</div>
-</div>
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>Train rows: 1351341 Test rows: 366879
-</pre>
-</div>
-</div>
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr" tabindex="0">
-<pre>/tmp/ipython-input-3119358581.py:132: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.
-The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.
-
-For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.
-
-
-  df_train[col].fillna(numeric_medians[col], inplace=True)
-/tmp/ipython-input-3119358581.py:133: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.
-The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.
-
-For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.
-
-
-  df_test[col].fillna(numeric_medians[col], inplace=True)
-/tmp/ipython-input-3119358581.py:150: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.
-The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.
-
-For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.
-
-
-  subset[col].fillna(global_mean, inplace=True)
-/tmp/ipython-input-3119358581.py:150: FutureWarning: A value is trying to be set on a copy of a DataFrame or Series through chained assignment using an inplace method.
-The behavior will change in pandas 3.0. This inplace method will never work because the intermediate object on which we are setting values always behaves as a copy.
-
-For example, when doing 'df[col].method(value, inplace=True)', try using 'df.method({col: value}, inplace=True)' or df[col] = df[col].method(value) instead, to perform the operation inplace on the original object.
-
-
-  subset[col].fillna(global_mean, inplace=True)
-</pre>
-</div>
-</div>
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>Shape X_train: (1351341, 142)
-Shape X_test : (366879, 142)
-</pre>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>Final Dataset:</strong></p>
-<ul>
-<li><strong>Features</strong>: 142 total (5 categorical + 9 numeric + 128 BERT embeddings)</li>
-<li><strong>Train set</strong>: 1,351,341 observations (78.6%)</li>
-<li><strong>Test set</strong>: 366,879 observations (21.4%)</li>
-<li><strong>Target</strong>: Menu item price ($0-$30 range)</li>
-</ul>
-<p>The BERT embeddings capture what each menu item actually is (pizza vs. salad vs. drink), which should be the strongest price predictor.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Model-1:-Linear-Regression-(Baseline)">Model 1: Linear Regression (Baseline)<a class="anchor-link" href="#Model-1:-Linear-Regression-(Baseline)">¶</a></h3><p>We start with ordinary least squares regression as our baseline. This assumes linear relationships and independent feature contributions - likely too simplistic, but provides a benchmark for comparison.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p>NOT REQUIRED BUT IMPORTING A FEW REQUIRED LIBS JUST TO MAKE SURE THERE ARE NO ERRORS(HELPFUL WHEN RAM IS COMPLETELY USED IN GOOGLE COLAB).</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.preprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">LabelEncoder</span><span class="p">,</span> <span class="n">StandardScaler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.model_selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">GroupShuffleSplit</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">mean_absolute_error</span><span class="p">,</span> <span class="n">mean_squared_error</span><span class="p">,</span> <span class="n">r2_score</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.linear_model</span><span class="w"> </span><span class="kn">import</span> <span class="n">LinearRegression</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.pipeline</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pipeline</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">AutoTokenizer</span><span class="p">,</span> <span class="n">AutoModel</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">transformers.models.bert.modeling_bert</span><span class="w"> </span><span class="kn">import</span> <span class="n">BertModel</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="c1"># ======================================================</span>
-<span class="c1">#  Train Linear Regression model (with StandardScaler)</span>
-<span class="c1"># ======================================================</span>
-<span class="n">pipeline</span> <span class="o">=</span> <span class="n">Pipeline</span><span class="p">([</span>
-    <span class="p">(</span><span class="s2">"scaler"</span><span class="p">,</span> <span class="n">StandardScaler</span><span class="p">()),</span>        <span class="c1"># scale all features (including encoded categories &amp; embeddings)</span>
-    <span class="p">(</span><span class="s2">"lr"</span><span class="p">,</span> <span class="n">LinearRegression</span><span class="p">())</span>
-<span class="p">])</span>
-
-<span class="n">pipeline</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Evaluate</span>
-<span class="c1"># ======================================================</span>
-<span class="n">y_pred</span> <span class="o">=</span> <span class="n">pipeline</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
-
-<span class="n">mae</span> <span class="o">=</span> <span class="n">mean_absolute_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-<span class="n">rmse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">mean_squared_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">))</span>
-<span class="n">r2</span> <span class="o">=</span> <span class="n">r2_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"LinearRegression + BERT-tiny embeddings (grouped split + agg features):"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"MAE:"</span><span class="p">,</span> <span class="n">mae</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"RMSE:"</span><span class="p">,</span> <span class="n">rmse</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"R²:"</span><span class="p">,</span> <span class="n">r2</span><span class="p">)</span>
-<span class="n">Accuracy_table</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="s2">"linearReg"</span><span class="p">,</span><span class="n">mae</span><span class="p">,</span><span class="n">rmse</span><span class="p">,</span><span class="n">r2</span><span class="p">])</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Save artifacts for inference</span>
-<span class="c1"># ======================================================</span>
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"lr_menu_price_pipeline.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">pipeline</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"label_encoders.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">label_encoders</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"feature_cols.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">feature_cols</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"numeric_medians.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">numeric_medians</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"price_aggregates.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">price_agg_dicts</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"Saved: lr_menu_price_pipeline.pkl, label_encoders.pkl, feature_cols.pkl, numeric_medians.pkl, price_aggregates.pkl"</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>Linear Regression Results:</strong></p>
-<ul>
-<li>MAE: $3.31</li>
-<li>RMSE: $4.52</li>
-<li>R²: 0.796</li>
-</ul>
-<p>The baseline achieves R² = 0.796, a <strong>10× improvement</strong> over H4 (R² = 0.077). This dramatic jump comes from BERT embeddings capturing item identity and target-based features encoding price patterns. However, MAE = $3.31 (~25% error for a $13 item) shows room for improvement.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Model-2:-Ridge-Regression-(L2-Regularization)">Model 2: Ridge Regression (L2 Regularization)<a class="anchor-link" href="#Model-2:-Ridge-Regression-(L2-Regularization)">¶</a></h3><p>Ridge adds L2 regularization (α = 1.0) to penalize large coefficients and reduce overfitting. With 142 features, this could help stabilize predictions.</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.linear_model</span><span class="w"> </span><span class="kn">import</span> <span class="n">Ridge</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.preprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">StandardScaler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.pipeline</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pipeline</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Train Ridge Regression model (with StandardScaler)</span>
-<span class="c1"># ======================================================</span>
-<span class="n">ridge_model</span> <span class="o">=</span> <span class="n">Pipeline</span><span class="p">([</span>
-    <span class="p">(</span><span class="s2">"scaler"</span><span class="p">,</span> <span class="n">StandardScaler</span><span class="p">()),</span>
-    <span class="p">(</span><span class="s2">"ridge"</span><span class="p">,</span> <span class="n">Ridge</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">))</span>
-<span class="p">])</span>
-
-<span class="n">ridge_model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Evaluate</span>
-<span class="c1"># ======================================================</span>
-<span class="n">y_pred</span> <span class="o">=</span> <span class="n">ridge_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
-
-<span class="n">mae</span> <span class="o">=</span> <span class="n">mean_absolute_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-<span class="n">rmse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">mean_squared_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">))</span>
-<span class="n">r2</span> <span class="o">=</span> <span class="n">r2_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"Ridge Regression + BERT-tiny embeddings:"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"MAE:"</span><span class="p">,</span> <span class="n">mae</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"RMSE:"</span><span class="p">,</span> <span class="n">rmse</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"R²:"</span><span class="p">,</span> <span class="n">r2</span><span class="p">)</span>
-<span class="n">Accuracy_table</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="s2">"ridge"</span><span class="p">,</span><span class="n">mae</span><span class="p">,</span><span class="n">rmse</span><span class="p">,</span><span class="n">r2</span><span class="p">])</span>
-<span class="c1"># ======================================================</span>
-<span class="c1"># Save artifacts</span>
-<span class="c1"># ======================================================</span>
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"ridge_menu_price_pipeline.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">ridge_model</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>Ridge Results:</strong></p>
-<ul>
-<li>MAE: ~$3.31</li>
-<li>R²: ~0.796</li>
-</ul>
-<p>Ridge performs identically to standard linear regression - regularization provides no benefit with 1.3M training examples. We need non-linear models to improve further.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Model-3:-XGBoost-(Gradient-Boosting)">Model 3: XGBoost (Gradient Boosting)<a class="anchor-link" href="#Model-3:-XGBoost-(Gradient-Boosting)">¶</a></h3><p>XGBoost builds 400 decision trees sequentially, with each tree correcting previous errors. Trees can capture non-linearities, threshold effects, and feature interactions that linear models miss.</p>
-<p><strong>Hyperparameters:</strong> 400 trees, learning rate 0.05, max depth 8, 80% row/column sampling.</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">mean_absolute_error</span><span class="p">,</span> <span class="n">mean_squared_error</span><span class="p">,</span> <span class="n">r2_score</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">xgboost</span><span class="w"> </span><span class="kn">import</span> <span class="n">XGBRegressor</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
-
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Train XGBoost model</span>
-<span class="c1"># ======================================================</span>
-<span class="n">xgb_model</span> <span class="o">=</span> <span class="n">XGBRegressor</span><span class="p">(</span>
-    <span class="n">n_estimators</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span>
-    <span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
-    <span class="n">max_depth</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
-    <span class="n">subsample</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
-    <span class="n">colsample_bytree</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
-    <span class="n">objective</span><span class="o">=</span><span class="s2">"reg:squarederror"</span><span class="p">,</span>
-    <span class="n">tree_method</span><span class="o">=</span><span class="s2">"hist"</span><span class="p">,</span>
-    <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>        <span class="c1"># remove/change if GPU not available</span>
-    <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span>
-<span class="p">)</span>
-
-<span class="n">xgb_model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">eval_set</span><span class="o">=</span><span class="p">[(</span><span class="n">X_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">)],</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Evaluate</span>
-<span class="c1"># ======================================================</span>
-<span class="n">y_pred</span> <span class="o">=</span> <span class="n">xgb_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
-
-<span class="n">mae</span> <span class="o">=</span> <span class="n">mean_absolute_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-<span class="n">rmse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">mean_squared_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">))</span>
-<span class="n">r2</span> <span class="o">=</span> <span class="n">r2_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"XGBoost + BERT-tiny embeddings (grouped split + agg features):"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"MAE:"</span><span class="p">,</span> <span class="n">mae</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"RMSE:"</span><span class="p">,</span> <span class="n">rmse</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"R²:"</span><span class="p">,</span> <span class="n">r2</span><span class="p">)</span>
-<span class="n">Accuracy_table</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="s2">"xgb"</span><span class="p">,</span><span class="n">mae</span><span class="p">,</span><span class="n">rmse</span><span class="p">,</span><span class="n">r2</span><span class="p">])</span>
-<span class="c1"># ======================================================</span>
-<span class="c1"># Save artifacts for inference</span>
-<span class="c1"># ======================================================</span>
-<span class="n">xgb_model</span><span class="o">.</span><span class="n">save_model</span><span class="p">(</span><span class="s2">"xgb_menu_price_2.json"</span><span class="p">)</span>
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"label_encoders_2.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">label_encoders</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"feature_cols_2.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">feature_cols</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"numeric_medians_2.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">numeric_medians</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"price_aggregates_2.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">price_agg_dicts</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>XGBoost Results:</strong></p>
-<ul>
-<li>MAE: <strong>$0.747</strong> (predictions off by 75 cents on average)</li>
-<li>RMSE: $1.20</li>
-<li>R²: <strong>0.986</strong> (explains 98.6% of variance)</li>
-</ul>
-<p>XGBoost achieves exceptional performance - <strong>77% error reduction</strong> vs. linear models. The R² = 0.986 means it captures nearly all price variation by learning complex non-linear pricing rules and feature interactions. For a $13 average item, 75-cent error is only 5.8% - acceptable for production use.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Model-4:-CatBoost-(Categorical-Boosting)">Model 4: CatBoost (Categorical Boosting)<a class="anchor-link" href="#Model-4:-CatBoost-(Categorical-Boosting)">¶</a></h3><p>CatBoost is designed for datasets with many categorical variables (we have 5: restaurant, item_type, region, state, city). It handles categories natively without label encoding and uses ordered boosting to reduce overfitting.</p>
-<p><strong>Hyperparameters:</strong> 300 iterations, learning rate 0.08, depth 6, early stopping after 50 iterations.</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.model_selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">GroupShuffleSplit</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">mean_absolute_error</span><span class="p">,</span> <span class="n">mean_squared_error</span><span class="p">,</span> <span class="n">r2_score</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">catboost</span><span class="w"> </span><span class="kn">import</span> <span class="n">CatBoostRegressor</span><span class="p">,</span> <span class="n">Pool</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
-
-<span class="c1"># Indices of categorical features in feature_cols</span>
-<span class="n">cat_feature_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">feature_cols</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">col</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cat_cols</span><span class="p">]</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Create CatBoost Pools</span>
-<span class="c1"># ======================================================</span>
-<span class="n">train_pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span>
-    <span class="n">data</span><span class="o">=</span><span class="n">X_train</span><span class="p">,</span>
-    <span class="n">label</span><span class="o">=</span><span class="n">y_train</span><span class="p">,</span>
-    <span class="n">cat_features</span><span class="o">=</span><span class="n">cat_feature_indices</span>
-<span class="p">)</span>
-
-<span class="n">test_pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span>
-    <span class="n">data</span><span class="o">=</span><span class="n">X_test</span><span class="p">,</span>
-    <span class="n">label</span><span class="o">=</span><span class="n">y_test</span><span class="p">,</span>
-    <span class="n">cat_features</span><span class="o">=</span><span class="n">cat_feature_indices</span>
-<span class="p">)</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Train CatBoost model</span>
-<span class="c1"># ======================================================</span>
-<span class="c1"># Set task_type to "GPU" if you have a GPU &amp; CatBoost GPU installed</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">CatBoostRegressor</span><span class="p">(</span>
-    <span class="n">iterations</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>        <span class="c1"># was 600</span>
-    <span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.08</span><span class="p">,</span>    <span class="c1"># a bit higher so we need fewer iters</span>
-    <span class="n">depth</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>               <span class="c1"># was 8 → much faster</span>
-    <span class="n">loss_function</span><span class="o">=</span><span class="s2">"RMSE"</span><span class="p">,</span>
-    <span class="n">eval_metric</span><span class="o">=</span><span class="s2">"RMSE"</span><span class="p">,</span>
-    <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
-    <span class="n">task_type</span><span class="o">=</span><span class="s2">"CPU"</span><span class="p">,</span>       <span class="c1"># keep CPU unless you have GPU support</span>
-    <span class="n">thread_count</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>       <span class="c1"># use all CPU cores</span>
-    <span class="n">subsample</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>         <span class="c1"># row sampling</span>
-    <span class="n">rsm</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>               <span class="c1"># column sampling</span>
-    <span class="n">od_type</span><span class="o">=</span><span class="s2">"Iter"</span><span class="p">,</span>        <span class="c1"># early stopping</span>
-    <span class="n">od_wait</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>            <span class="c1"># stop if no improvement for 50 iters</span>
-    <span class="n">verbose</span><span class="o">=</span><span class="mi">100</span>            <span class="c1"># show progress every 100 iters</span>
-<span class="p">)</span>
-
-<span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_pool</span><span class="p">,</span> <span class="n">eval_set</span><span class="o">=</span><span class="n">test_pool</span><span class="p">)</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># Evaluate</span>
-<span class="c1"># ======================================================</span>
-<span class="n">y_pred</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">test_pool</span><span class="p">)</span>
-
-<span class="n">mae</span> <span class="o">=</span> <span class="n">mean_absolute_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-<span class="n">rmse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">mean_squared_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">))</span>
-<span class="n">r2</span> <span class="o">=</span> <span class="n">r2_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"CatBoost + BERT-tiny embeddings (grouped split + agg features):"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"MAE:"</span><span class="p">,</span> <span class="n">mae</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"RMSE:"</span><span class="p">,</span> <span class="n">rmse</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"R²:"</span><span class="p">,</span> <span class="n">r2</span><span class="p">)</span>
-<span class="n">Accuracy_table</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="s2">"catboost"</span><span class="p">,</span><span class="n">mae</span><span class="p">,</span><span class="n">rmse</span><span class="p">,</span><span class="n">r2</span><span class="p">])</span>
-<span class="c1"># ======================================================</span>
-<span class="c1"># Save artifacts for inference</span>
-<span class="c1"># ======================================================</span>
-<span class="n">model</span><span class="o">.</span><span class="n">save_model</span><span class="p">(</span><span class="s2">"catboost_menu_price.cbm"</span><span class="p">)</span>
-
-<span class="c1"># Optional: also save which columns are categorical</span>
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"cat_feature_indices.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">cat_feature_indices</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>CatBoost Results:</strong></p>
-<ul>
-<li>MAE: $0.932</li>
-<li>RMSE: $1.45</li>
-<li>R²: 0.979</li>
-</ul>
-<p>CatBoost delivers excellent performance, slightly below XGBoost (MAE $0.93 vs $0.75) but <strong>25% faster training</strong> (9 minutes vs 12 minutes). The native categorical handling and early stopping make it the best speed/accuracy tradeoff. For production deployment, CatBoost offers the best balance.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Model-5:-Neural-Network-(Deep-Learning)">Model 5: Neural Network (Deep Learning)<a class="anchor-link" href="#Model-5:-Neural-Network-(Deep-Learning)">¶</a></h3><p>Our final model is a feedforward neural network with 3 hidden layers (256→128→64 neurons). The network learns hierarchical feature representations through backpropagation.</p>
-<p><strong>Architecture:</strong> Includes BatchNorm (stabilization), Dropout (prevent overfitting), and ReLU activations (non-linearity). Trained for 10 epochs with Adam optimizer (learning rate 5e-5) on MSE loss.</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="n">scaler_numeric</span> <span class="o">=</span> <span class="n">StandardScaler</span><span class="p">()</span>
-<span class="n">scaler_cat</span> <span class="o">=</span> <span class="n">StandardScaler</span><span class="p">()</span>
-<span class="n">scaler_emb</span> <span class="o">=</span> <span class="n">StandardScaler</span><span class="p">()</span>
-
-<span class="c1"># Numeric</span>
-<span class="n">df_train</span><span class="p">[</span><span class="n">numeric_cols</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaler_numeric</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">df_train</span><span class="p">[</span><span class="n">numeric_cols</span><span class="p">])</span>
-<span class="n">df_test</span><span class="p">[</span><span class="n">numeric_cols</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaler_numeric</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">df_test</span><span class="p">[</span><span class="n">numeric_cols</span><span class="p">])</span>
-
-<span class="c1"># Categorical (scaled even though encoded 0..N — helps NN a lot)</span>
-<span class="n">df_train</span><span class="p">[</span><span class="n">cat_cols</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaler_cat</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">df_train</span><span class="p">[</span><span class="n">cat_cols</span><span class="p">])</span>
-<span class="n">df_test</span><span class="p">[</span><span class="n">cat_cols</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaler_cat</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">df_test</span><span class="p">[</span><span class="n">cat_cols</span><span class="p">])</span>
-
-<span class="c1"># BERT embeddings</span>
-<span class="n">df_train</span><span class="p">[</span><span class="n">emb_cols</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaler_emb</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">df_train</span><span class="p">[</span><span class="n">emb_cols</span><span class="p">])</span>
-<span class="n">df_test</span><span class="p">[</span><span class="n">emb_cols</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaler_emb</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">df_test</span><span class="p">[</span><span class="n">emb_cols</span><span class="p">])</span>
-
-<span class="c1"># Save scalers</span>
-<span class="n">normalizers</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"scaler_numeric"</span><span class="p">:</span> <span class="n">scaler_numeric</span><span class="p">,</span>
-    <span class="s2">"scaler_cat"</span><span class="p">:</span> <span class="n">scaler_cat</span><span class="p">,</span>
-    <span class="s2">"scaler_emb"</span><span class="p">:</span> <span class="n">scaler_emb</span>
-<span class="p">}</span>
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"scalers.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">normalizers</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-
-<span class="n">emb_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"menu_emb_"</span><span class="p">)]</span>
-
-<span class="n">feature_cols</span> <span class="o">=</span> <span class="n">cat_cols</span> <span class="o">+</span> <span class="n">numeric_cols</span> <span class="o">+</span> <span class="n">emb_cols</span>
-
-<span class="n">X_train</span> <span class="o">=</span> <span class="n">df_train</span><span class="p">[</span><span class="n">feature_cols</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-<span class="n">X_test</span>  <span class="o">=</span> <span class="n">df_test</span><span class="p">[</span><span class="n">feature_cols</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-<span class="n">y_train</span> <span class="o">=</span> <span class="n">df_train</span><span class="p">[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-<span class="n">y_test</span>  <span class="o">=</span> <span class="n">df_test</span><span class="p">[</span><span class="s2">"price"</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"X_train shape:"</span><span class="p">,</span> <span class="n">X_train</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"X_test shape :"</span><span class="p">,</span> <span class="n">X_test</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-
-<span class="k">class</span><span class="w"> </span><span class="nc">PriceDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
-
-<span class="n">train_ds</span> <span class="o">=</span> <span class="n">PriceDataset</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
-<span class="n">test_ds</span>  <span class="o">=</span> <span class="n">PriceDataset</span><span class="p">(</span><span class="n">X_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">)</span>
-
-<span class="n">train_loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">train_ds</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">test_loader</span>  <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">test_ds</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">PriceNN</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">net</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="mi">256</span><span class="p">),</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm1d</span><span class="p">(</span><span class="mi">256</span><span class="p">),</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="mf">0.1</span><span class="p">),</span>
-
-            <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">256</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm1d</span><span class="p">(</span><span class="mi">128</span><span class="p">),</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="mf">0.1</span><span class="p">),</span>
-
-            <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">64</span><span class="p">),</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm1d</span><span class="p">(</span><span class="mi">64</span><span class="p">),</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
-
-            <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-        <span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-
-<span class="n">input_dim</span> <span class="o">=</span> <span class="n">X_train</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">PriceNN</span><span class="p">(</span><span class="n">input_dim</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-
-<span class="n">criterion</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">()</span>
-<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">5e-5</span><span class="p">)</span>
-<span class="n">n_epochs</span> <span class="o">=</span> <span class="mi">10</span>
-
-<span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_epochs</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
-    <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
-    <span class="n">train_losses</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">xb</span><span class="p">,</span> <span class="n">yb</span> <span class="ow">in</span> <span class="n">train_loader</span><span class="p">:</span>
-        <span class="n">xb</span> <span class="o">=</span> <span class="n">xb</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-        <span class="n">yb</span> <span class="o">=</span> <span class="n">yb</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-
-        <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
-        <span class="n">preds</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">xb</span><span class="p">)</span>
-        <span class="n">loss</span> <span class="o">=</span> <span class="n">criterion</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">yb</span><span class="p">)</span>
-        <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-        <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-        <span class="n">train_losses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">loss</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
-
-    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
-    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-        <span class="n">all_preds</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">all_true</span>  <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">xb</span><span class="p">,</span> <span class="n">yb</span> <span class="ow">in</span> <span class="n">test_loader</span><span class="p">:</span>
-            <span class="n">xb</span> <span class="o">=</span> <span class="n">xb</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-            <span class="n">yb</span> <span class="o">=</span> <span class="n">yb</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-            <span class="n">preds</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">xb</span><span class="p">)</span>
-            <span class="n">all_preds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">preds</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
-            <span class="n">all_true</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">yb</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
-        <span class="n">all_preds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">all_preds</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
-        <span class="n">all_true</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">all_true</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
-
-    <span class="n">mae</span>  <span class="o">=</span> <span class="n">mean_absolute_error</span><span class="p">(</span><span class="n">all_true</span><span class="p">,</span> <span class="n">all_preds</span><span class="p">)</span>
-    <span class="n">rmse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">mean_squared_error</span><span class="p">(</span><span class="n">all_true</span><span class="p">,</span> <span class="n">all_preds</span><span class="p">))</span>
-    <span class="n">r2</span>   <span class="o">=</span> <span class="n">r2_score</span><span class="p">(</span><span class="n">all_true</span><span class="p">,</span> <span class="n">all_preds</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Epoch </span><span class="si">{</span><span class="n">epoch</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2"> | TrainLoss=</span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">train_losses</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> | "</span>
-          <span class="sa">f</span><span class="s2">"MAE=</span><span class="si">{</span><span class="n">mae</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> | RMSE=</span><span class="si">{</span><span class="n">rmse</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> | R²=</span><span class="si">{</span><span class="n">r2</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<span class="n">Accuracy_table</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="sa">f</span><span class="s2">"NN-epoch</span><span class="si">{</span><span class="n">epoch</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span><span class="n">mae</span><span class="p">,</span><span class="n">rmse</span><span class="p">,</span><span class="n">r2</span><span class="p">])</span>
-<span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span> <span class="s2">"nn_menu_price.pth"</span><span class="p">)</span>
-
-
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"price_aggregates_nn.pkl"</span><span class="p">,</span> <span class="s2">"wb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">price_agg_dicts</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>Neural Network Results:</strong></p>
-<p>Training improved dramatically from Epoch 1 (MAE $3.87) to Epoch 2 (MAE $0.98), then gradually refined through Epoch 10.</p>
-<p><strong>Final Performance:</strong></p>
-<ul>
-<li>MAE: $0.842</li>
-<li>RMSE: $1.39</li>
-<li>R²: 0.981</li>
-</ul>
-<p>The neural network ranks <strong>2nd overall</strong> - better than CatBoost but slightly below XGBoost. It achieves 98.1% variance explained with smooth predictions. The deep architecture captures non-linear patterns and feature interactions, though XGBoost's ensemble of 400 trees still edges it out.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Final-Model-Comparison">Final Model Comparison<a class="anchor-link" href="#Final-Model-Comparison">¶</a></h3><p>We compare all 5 models to identify the best predictor of fast-food menu prices.</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">Accuracy_table</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="n">accuracy</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">Accuracy_table</span><span class="p">,</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"Model"</span><span class="p">,</span><span class="s2">"MAE"</span><span class="p">,</span><span class="s2">"RMSE"</span><span class="p">,</span><span class="s2">"Rsquare"</span><span class="p">])</span>
-<span class="n">accuracy</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>Model Performance Summary:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Model</th>
-<th>MAE ($)</th>
-<th>RMSE ($)</th>
-<th>R²</th>
-<th>Rank</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>XGBoost</strong></td>
-<td><strong>0.747</strong></td>
-<td><strong>1.200</strong></td>
-<td><strong>0.986</strong></td>
-<td>1st</td>
-</tr>
-<tr>
-<td>Neural Network</td>
-<td>0.842</td>
-<td>1.387</td>
-<td>0.981</td>
-<td>2nd</td>
-</tr>
-<tr>
-<td>CatBoost</td>
-<td>0.932</td>
-<td>1.452</td>
-<td>0.979</td>
-<td>3rd</td>
-</tr>
-<tr>
-<td>Ridge</td>
-<td>3.312</td>
-<td>4.524</td>
-<td>0.796</td>
-<td>4th</td>
-</tr>
-<tr>
-<td>Linear Regression</td>
-<td>3.312</td>
-<td>4.524</td>
-<td>0.796</td>
-<td>5th</td>
-</tr>
-</tbody>
-</table>
-<hr/>
-<p><strong>Key Findings:</strong></p>
-<p><strong>1. Gradient Boosting Dominates:</strong> XGBoost and CatBoost reduce prediction error by 75–78% compared to linear models. Tree ensembles excel at capturing non-linear pricing patterns and feature interactions.</p>
-<p><strong>2. Linear Models Underperform:</strong> Linear/Ridge achieve only R² = 0.796 because they assume linear relationships and independent features – too simplistic for fast-food pricing with threshold effects and regional heterogeneity.</p>
-<p><strong>3. BERT Embeddings Are Crucial:</strong> All models benefit massively from text embeddings. Our H4 regression (without embeddings) achieved R² = 0.077. Adding BERT improves this to 0.796 (linear) or 0.986 (XGBoost). <strong>Item identity matters more than location economics.</strong></p>
-<p><strong>4. Diminishing Returns:</strong> The jump from linear (R² = 0.796) to XGBoost (R² = 0.986) is substantial, but XGBoost to Neural Network provides minimal gain. After capturing main non-linear patterns, complexity helps little.</p>
-<hr/>
-<p><strong>Production Recommendations:</strong></p>
-<ul>
-<li><strong>Best Accuracy:</strong> XGBoost (MAE = $0.75)</li>
-<li><strong>Best Speed/Accuracy Balance:</strong> CatBoost (MAE = $0.93, 25% faster training)</li>
-<li><strong>Best for Continuous Updates:</strong> Neural Network (MAE = $0.84, easy to fine-tune)</li>
-</ul>
-<hr/>
-<p><strong>Business Value:</strong></p>
-<p>A chain opening a new location could use XGBoost to predict optimal prices for 200 menu items with ±$0.75 accuracy. This prevents $150 in potential mispricing per location – across 100 locations, that's $15,000 in revenue optimization for ~$50 in compute costs (<strong>300× ROI</strong>).</p>
-<hr/>
-<p><strong>Conclusion:</strong></p>
-<p>Machine learning achieves <strong>exceptional accuracy</strong> (R² &gt; 0.98) by combining economic features, geography, brand identity, and BERT embeddings of menu text. The most important finding: <strong>item identity (what's being sold) matters far more than local economics</strong>. Fast-food pricing is product-driven, not market-driven – restaurants maintain consistent prices for branded items regardless of local conditions.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="Model-Deployment:-XGBoost-Inference-Example">Model Deployment: XGBoost Inference Example<a class="anchor-link" href="#Model-Deployment:-XGBoost-Inference-Example">¶</a></h3><p>Having trained our best model (XGBoost with MAE = $0.75), we now demonstrate how to use it for <strong>real-world predictions</strong>. This inference pipeline shows how a restaurant chain could predict prices for a new location.</p>
-<p><strong>Use Case:</strong> A restaurant wants to open in a new city and needs to set menu prices based on:</p>
-<ul>
-<li>Location (city, state, coordinates)</li>
-<li>Local economics (median income, minimum wage)</li>
-<li>Regional food costs</li>
-<li>Menu items offered</li>
-</ul>
-<p>The code below demonstrates the complete inference workflow from raw inputs to price predictions.</p>
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-<div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-python"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">AutoTokenizer</span><span class="p">,</span> <span class="n">AutoModel</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">xgboost</span><span class="w"> </span><span class="kn">import</span> <span class="n">XGBRegressor</span>
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># 0. LOAD / DEFINE GLOBAL OBJECTS (AFTER TRAINING)</span>
-<span class="c1"># ======================================================</span>
-<span class="c1"># After training, you should have these in memory or load them:</span>
-
-<span class="c1"># 1) Trained XGBoost model</span>
-<span class="c1"># xgb_model = ... (already trained)</span>
-<span class="c1"># or load from disk:</span>
-<span class="c1"># xgb_model = XGBRegressor()</span>
-<span class="c1"># xgb_model.load_model("xgb_menu_price.json")</span>
-
-<span class="c1"># 2) Label encoders for categorical columns</span>
-<span class="c1"># with open("label_encoders.pkl", "rb") as f:</span>
-<span class="c1">#     label_encoders = pickle.load(f)</span>
-
-<span class="c1"># 3) Region-level food price table (region_food_df)</span>
-<span class="c1"># region_food_df = pd.read_csv("region_food_df.csv")</span>
-
-<span class="c1"># 4) Feature columns used during training (order matters!)</span>
-<span class="c1"># with open("feature_cols.pkl", "rb") as f:</span>
-<span class="c1">#     feature_cols = pickle.load(f)</span>
-
-<span class="c1"># 5) Numeric columns and their training medians</span>
-<span class="c1"># with open("numeric_medians.pkl", "rb") as f:</span>
-<span class="c1">#     numeric_medians = pickle.load(f)</span>
-<span class="c1"># numeric_cols = list(numeric_medians.keys())</span>
-
-<span class="c1"># 6) Region map (same as training)</span>
-<span class="n">region_map</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"ME"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"NH"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"VT"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"MA"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"RI"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"CT"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span>
-    <span class="s2">"NY"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"NJ"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span><span class="s2">"PA"</span><span class="p">:</span><span class="s2">"Northeast"</span><span class="p">,</span>
-
-    <span class="s2">"OH"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"MI"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"IN"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"IL"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"WI"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"MN"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"IA"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span>
-    <span class="s2">"MO"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"ND"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"SD"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"NE"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span><span class="s2">"KS"</span><span class="p">:</span><span class="s2">"Midwest"</span><span class="p">,</span>
-
-    <span class="s2">"DE"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"MD"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"DC"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"VA"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"WV"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"NC"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"SC"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span>
-    <span class="s2">"GA"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"FL"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"KY"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"TN"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"AL"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"MS"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"AR"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span>
-    <span class="s2">"LA"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"TX"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span><span class="s2">"OK"</span><span class="p">:</span><span class="s2">"South"</span><span class="p">,</span>
-
-    <span class="s2">"MT"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"ID"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"WY"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"CO"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"NM"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"AZ"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span>
-    <span class="s2">"UT"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"NV"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"WA"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"OR"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"CA"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"AK"</span><span class="p">:</span><span class="s2">"West"</span><span class="p">,</span><span class="s2">"HI"</span><span class="p">:</span><span class="s2">"West"</span>
-<span class="p">}</span>
-
-<span class="c1"># 7) Sentence embedding model (BERT-tiny, same as training)</span>
-<span class="n">device</span> <span class="o">=</span> <span class="s2">"cuda"</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">"cpu"</span>
-<span class="n">bert_model_name</span> <span class="o">=</span> <span class="s2">"prajjwal1/bert-tiny"</span>   <span class="c1"># 2-layer, hidden size=128 (what we used)</span>
-<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">AutoTokenizer</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">bert_model_name</span><span class="p">)</span>
-<span class="n">bert_model</span> <span class="o">=</span> <span class="n">AutoModel</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">bert_model_name</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-<span class="n">bert_model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">encode_menu_items_bert</span><span class="p">(</span><span class="n">texts</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""</span>
-<span class="sd">    Encode a list/array of strings into CLS embeddings using bert-tiny.</span>
-<span class="sd">    Returns a numpy array of shape (len(texts), hidden_size).</span>
-<span class="sd">    """</span>
-    <span class="n">all_embs</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">texts</span><span class="p">),</span> <span class="n">batch_size</span><span class="p">):</span>
-        <span class="n">batch</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">texts</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="n">batch_size</span><span class="p">])</span>
-        <span class="n">enc</span> <span class="o">=</span> <span class="n">tokenizer</span><span class="p">(</span>
-            <span class="n">batch</span><span class="p">,</span>
-            <span class="n">padding</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">truncation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">max_length</span><span class="o">=</span><span class="n">max_length</span><span class="p">,</span>
-            <span class="n">return_tensors</span><span class="o">=</span><span class="s2">"pt"</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-
-        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-            <span class="n">outputs</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="o">**</span><span class="n">enc</span><span class="p">)</span>              <span class="c1"># last_hidden_state: (B, L, H)</span>
-            <span class="n">cls_emb</span> <span class="o">=</span> <span class="n">outputs</span><span class="o">.</span><span class="n">last_hidden_state</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># (B, H)</span>
-            <span class="n">cls_emb</span> <span class="o">=</span> <span class="n">cls_emb</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
-            <span class="n">all_embs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cls_emb</span><span class="p">)</span>
-
-        <span class="k">del</span> <span class="n">enc</span><span class="p">,</span> <span class="n">outputs</span><span class="p">,</span> <span class="n">cls_emb</span>
-        <span class="k">if</span> <span class="n">device</span> <span class="o">==</span> <span class="s2">"cuda"</span><span class="p">:</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">empty_cache</span><span class="p">()</span>
-
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">all_embs</span><span class="p">)</span>
-
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># 1. HELPER: PREPROCESS + EMBED NEW DATA</span>
-<span class="c1"># ======================================================</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">prepare_inference_features</span><span class="p">(</span><span class="n">new_df_raw</span><span class="p">,</span>
-                               <span class="n">label_encoders</span><span class="p">,</span>
-                               <span class="n">region_food_df</span><span class="p">,</span>
-                               <span class="n">feature_cols</span><span class="p">,</span>
-                               <span class="n">numeric_medians</span><span class="p">,</span>
-                               <span class="n">region_map</span><span class="o">=</span><span class="n">region_map</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""</span>
-<span class="sd">    new_df_raw: DataFrame with raw columns like:</span>
-<span class="sd">        restaurant_name, city, state, pincode, menu_item,</span>
-<span class="sd">        min_wage, income, latitude, longitude, zip_int, ...</span>
-<span class="sd">    Returns X_new aligned with training-time feature_cols.</span>
-<span class="sd">    """</span>
-    <span class="n">df</span> <span class="o">=</span> <span class="n">new_df_raw</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-
-    <span class="c1"># ---------- Add region ----------</span>
-    <span class="n">df</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"state"</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">region_map</span><span class="p">)</span>
-
-    <span class="c1"># ---------- Merge region avg food price ----------</span>
-    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">region_food_df</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">"region"</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s2">"left"</span><span class="p">)</span>
-
-    <span class="c1"># ---------- Ensure required columns exist ----------</span>
-    <span class="c1"># Categorical</span>
-    <span class="n">cat_cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">label_encoders</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-
-    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"restaurant_name"</span><span class="p">,</span> <span class="s2">"item_type"</span><span class="p">,</span> <span class="s2">"region"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"city"</span><span class="p">]:</span>
-        <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cat_cols</span><span class="p">:</span>
-            <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"Unknown"</span>
-
-    <span class="n">df</span><span class="p">[</span><span class="s2">"restaurant_name"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"restaurant_name"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-    <span class="n">df</span><span class="p">[</span><span class="s2">"item_type"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"item_type"</span><span class="p">,</span> <span class="s2">"Unknown"</span><span class="p">)</span>
-    <span class="n">df</span><span class="p">[</span><span class="s2">"item_type"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"item_type"</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="s2">"Unknown"</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-    <span class="n">df</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"region"</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="s2">"Unknown"</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-    <span class="n">df</span><span class="p">[</span><span class="s2">"state"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"state"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-    <span class="n">df</span><span class="p">[</span><span class="s2">"city"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"city"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-
-    <span class="c1"># Text column</span>
-    <span class="n">df</span><span class="p">[</span><span class="s2">"menu_item"</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"menu_item"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
-
-    <span class="c1"># ---------- Numeric columns ----------</span>
-    <span class="n">numeric_cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">numeric_medians</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">numeric_cols</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-            <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
-        <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_numeric</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"coerce"</span><span class="p">)</span>
-        <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="n">numeric_medians</span><span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-    <span class="c1"># ---------- Embeddings for menu_item (BERT-tiny CLS) ----------</span>
-    <span class="n">menu_texts</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">"menu_item"</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-    <span class="n">embeddings</span> <span class="o">=</span> <span class="n">encode_menu_items_bert</span><span class="p">(</span><span class="n">menu_texts</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
-    <span class="n">emb_dim</span> <span class="o">=</span> <span class="n">embeddings</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-
-    <span class="n">emb_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
-        <span class="n">embeddings</span><span class="p">,</span>
-        <span class="n">index</span><span class="o">=</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
-        <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"menu_emb_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">emb_dim</span><span class="p">)]</span>
-    <span class="p">)</span>
-
-    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">df</span><span class="p">,</span> <span class="n">emb_df</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-
-    <span class="c1"># ---------- Label encode categoricals ----------</span>
-    <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">le</span> <span class="ow">in</span> <span class="n">label_encoders</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">known_classes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">le</span><span class="o">.</span><span class="n">classes_</span><span class="p">)</span>
-        <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
-            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">known_classes</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">known_classes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="p">)</span>
-        <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">le</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">])</span>
-
-    <span class="c1"># ---------- Build final feature matrix in correct order ----------</span>
-    <span class="c1"># Ensure all feature_cols exist; if missing, create with 0</span>
-    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">feature_cols</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-            <span class="n">df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-
-    <span class="n">X_new</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">feature_cols</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">X_new</span>
-
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># 2. INFERENCE FUNCTION</span>
-<span class="c1"># ======================================================</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">predict_menu_prices</span><span class="p">(</span><span class="n">new_df_raw</span><span class="p">,</span>
-                        <span class="n">xgb_model</span><span class="p">,</span>
-                        <span class="n">label_encoders</span><span class="p">,</span>
-                        <span class="n">region_food_df</span><span class="p">,</span>
-                        <span class="n">feature_cols</span><span class="p">,</span>
-                        <span class="n">numeric_medians</span><span class="p">,</span>
-                        <span class="n">region_map</span><span class="o">=</span><span class="n">region_map</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""</span>
-<span class="sd">    High-level inference API:</span>
-<span class="sd">    - new_df_raw: DataFrame with new rows (same structure as training data, minus 'price')</span>
-<span class="sd">    - Returns: numpy array of predicted prices</span>
-<span class="sd">    """</span>
-    <span class="n">X_new</span> <span class="o">=</span> <span class="n">prepare_inference_features</span><span class="p">(</span>
-        <span class="n">new_df_raw</span><span class="o">=</span><span class="n">new_df_raw</span><span class="p">,</span>
-        <span class="n">label_encoders</span><span class="o">=</span><span class="n">label_encoders</span><span class="p">,</span>
-        <span class="n">region_food_df</span><span class="o">=</span><span class="n">region_food_df</span><span class="p">,</span>
-        <span class="n">feature_cols</span><span class="o">=</span><span class="n">feature_cols</span><span class="p">,</span>
-        <span class="n">numeric_medians</span><span class="o">=</span><span class="n">numeric_medians</span><span class="p">,</span>
-        <span class="n">region_map</span><span class="o">=</span><span class="n">region_map</span>
-    <span class="p">)</span>
-
-    <span class="n">preds</span> <span class="o">=</span> <span class="n">xgb_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_new</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">preds</span>
-
-
-<span class="c1"># ======================================================</span>
-<span class="c1"># 3. EXAMPLE USAGE</span>
-<span class="c1"># ======================================================</span>
-
-<span class="c1"># Example new data (could be 1 row or many)</span>
-<span class="n">new_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([</span>
-    <span class="p">{</span>
-        <span class="s2">"restaurant_name"</span><span class="p">:</span> <span class="s2">"chipotle"</span><span class="p">,</span>
-        <span class="s2">"city"</span><span class="p">:</span> <span class="s2">"cincinnati"</span><span class="p">,</span>
-        <span class="s2">"state"</span><span class="p">:</span> <span class="s2">"OH"</span><span class="p">,</span>
-        <span class="s2">"pincode"</span><span class="p">:</span> <span class="s2">"45202"</span><span class="p">,</span>
-        <span class="s2">"zip_int"</span><span class="p">:</span> <span class="mi">45202</span><span class="p">,</span>
-        <span class="s2">"menu_item"</span><span class="p">:</span> <span class="s2">"steak burrito bowl with guac"</span><span class="p">,</span>
-        <span class="s2">"item_type"</span><span class="p">:</span> <span class="s2">"mains"</span><span class="p">,</span>
-        <span class="s2">"min_wage"</span><span class="p">:</span> <span class="mf">10.7</span><span class="p">,</span>
-        <span class="s2">"income"</span><span class="p">:</span> <span class="mf">124663.0</span><span class="p">,</span>
-        <span class="s2">"latitude"</span><span class="p">:</span> <span class="mf">39.101973</span><span class="p">,</span>
-        <span class="s2">"longitude"</span><span class="p">:</span> <span class="o">-</span><span class="mf">84.512958</span>
-    <span class="p">},</span>
-    <span class="p">{</span>
-        <span class="s2">"restaurant_name"</span><span class="p">:</span> <span class="s2">"papa_johns"</span><span class="p">,</span>
-        <span class="s2">"city"</span><span class="p">:</span> <span class="s2">"BELTSVILLE"</span><span class="p">,</span>
-        <span class="s2">"state"</span><span class="p">:</span> <span class="s2">"MD"</span><span class="p">,</span>
-        <span class="s2">"pincode"</span><span class="p">:</span> <span class="s2">"20705"</span><span class="p">,</span>
-        <span class="s2">"zip_int"</span><span class="p">:</span> <span class="mi">20705</span><span class="p">,</span>
-        <span class="s2">"menu_item"</span><span class="p">:</span> <span class="s2">"large pepperoni pizza"</span><span class="p">,</span>
-        <span class="s2">"item_type"</span><span class="p">:</span> <span class="s2">"mains"</span><span class="p">,</span>
-        <span class="s2">"min_wage"</span><span class="p">:</span> <span class="mi">15</span><span class="p">,</span>
-        <span class="s2">"income"</span><span class="p">:</span> <span class="mf">118492.0</span><span class="p">,</span>
-        <span class="s2">"latitude"</span><span class="p">:</span> <span class="mf">39.03419</span><span class="p">,</span>
-        <span class="s2">"longitude"</span><span class="p">:</span> <span class="o">-</span><span class="mf">76.90956</span>
-    <span class="p">}</span>
-<span class="p">])</span>
-
-<span class="n">predicted_prices</span> <span class="o">=</span> <span class="n">predict_menu_prices</span><span class="p">(</span>
-    <span class="n">new_df_raw</span><span class="o">=</span><span class="n">new_data</span><span class="p">,</span>
-    <span class="n">xgb_model</span><span class="o">=</span><span class="n">xgb_model</span><span class="p">,</span>
-    <span class="n">label_encoders</span><span class="o">=</span><span class="n">label_encoders</span><span class="p">,</span>
-    <span class="n">region_food_df</span><span class="o">=</span><span class="n">region_food_df</span><span class="p">,</span>
-    <span class="n">feature_cols</span><span class="o">=</span><span class="n">feature_cols</span><span class="p">,</span>
-    <span class="n">numeric_medians</span><span class="o">=</span><span class="n">numeric_medians</span><span class="p">,</span>
-    <span class="n">region_map</span><span class="o">=</span><span class="n">region_map</span>
-<span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="s2">"Predicted prices:"</span><span class="p">,</span> <span class="n">predicted_prices</span><span class="p">)</span>
-</pre></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>Inference Pipeline Summary:</strong></p>
-<p>The code demonstrates a production-ready prediction system:</p>
-<ol>
-<li><strong>Load saved artifacts</strong>: Model, encoders, feature columns, training statistics</li>
-<li><strong>Process new inputs</strong>: Encode menu text with BERT, map categorical variables</li>
-<li><strong>Engineer features</strong>: Add regional food prices, compute derived features</li>
-<li><strong>Handle missing values</strong>: Fill with training set medians</li>
-<li><strong>Generate predictions</strong>: XGBoost produces price estimates in milliseconds</li>
-</ol>
-<p><strong>Key Considerations for Deployment:</strong></p>
-<ul>
-<li><strong>BERT embeddings</strong>: Pre-compute for common menu items to speed up inference</li>
-<li><strong>Feature consistency</strong>: New data must match training feature order exactly</li>
-<li><strong>Fallback handling</strong>: Gracefully handle unknown cities/states with regional averages</li>
-<li><strong>Monitoring</strong>: Track prediction errors in production to detect model drift</li>
-</ul>
-<p>This inference system enables dynamic pricing recommendations for new restaurant locations with 75-cent average error.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<hr/>
-<h2 id="7.-Conclusions-&amp;-Key-Insights">7. Conclusions &amp; Key Insights<a class="anchor-link" href="#7.-Conclusions-&amp;-Key-Insights">¶</a></h2><p>This tutorial investigated the economic and geographic factors that influence fast-food menu pricing across 6,700+ locations in the United States. We applied the complete data science lifecycle - from web scraping and data integration to statistical hypothesis testing and machine learning - to answer our core research questions.</p>
-<h3 id="Research-Questions-Answered">Research Questions Answered<a class="anchor-link" href="#Research-Questions-Answered">¶</a></h3><p><strong>1. Do restaurants charge more in wealthier areas? (Demand-Side)</strong></p>
-<p><strong>Answer:</strong> Yes, but the effect is <strong>surprisingly weak</strong>.</p>
-<p>Our multivariate regression (H4) found that each $10,000 increase in median household income is associated with only a <strong>$0.51 price increase</strong> - economically negligible. While statistically significant (p &lt; 0.001), this suggests fast-food chains prioritize <strong>pricing consistency</strong> over local market optimization. Restaurants don't fine-tune prices to local wealth the way luxury goods or real estate does.</p>
-<p><strong>2. Do higher labor costs get passed to consumers? (Supply-Side)</strong></p>
-<p><strong>Answer:</strong> Yes, with <strong>moderate pass-through rates</strong>.</p>
-<p>Each $1.00 increase in state minimum wage is associated with a <strong>$0.21 price increase</strong>, representing approximately 21% pass-through of labor costs. For example, California's 16.50 dollar minimum wage (vs Texas's $7.25) predicts a <strong>$1.93 price premium</strong> per item. This is consistent with economic research showing partial (not full) cost pass-through in competitive markets.</p>
-<p><strong>3. Do business models affect pricing? (Corporate vs Franchise)</strong></p>
-<p><strong>Answer:</strong> Yes - <strong>brand identity dominates all other factors</strong>.</p>
-<p>Even after controlling for income and wages, Domino's charges <strong>$2.89 more</strong> and Papa John's charges <strong>$2.44 more</strong> than Chipotle per menu item. This difference (20-25% premium) far exceeds effects from local economics. Corporate-owned Chipotle maintains tighter, lower pricing, while franchise-dominated pizza chains show greater regional variation and higher average prices.</p>
-<p><strong>4. Do different regions show systematic pricing patterns? (Geographic)</strong></p>
-<p><strong>Answer:</strong> Yes - the <strong>West region has a 11% premium</strong>.</p>
-<p>Regional ANOVA (H3) revealed significant differences: West (14.34) &gt; South (13.30) &gt; Northeast (13.20) &gt; Midwest (12.91). The ~$1.43 spread reflects California's outsized influence - high minimum wages, elevated costs, and wealthy markets drive Western prices up systematically.</p>
-<p><strong>5. Does local competition affect prices?</strong></p>
-<p><strong>Answer:</strong> No - competition shows a <strong>paradoxical positive effect</strong>.</p>
-<p>City-level analysis (H5) found that cities with more restaurants have <strong>slightly higher</strong> prices (coefficient = +0.042), not lower. This is because restaurant count proxies for <strong>urbanization and cost structure</strong>, not competitive pressure. Dense metros have both high restaurant density and elevated operating costs. Fast-food chains maintain sticky pricing strategies and rarely engage in local price wars.</p>
-<hr/>
-<h3 id="Key-Findings-Summary">Key Findings Summary<a class="anchor-link" href="#Key-Findings-Summary">¶</a></h3><p><strong>What Matters Most for Fast-Food Pricing:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Factor</th>
-<th>Effect Size</th>
-<th>Importance Ranking</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Restaurant Brand</strong></td>
-<td>+<code>$</code>2.44-<code>$</code>2.89</td>
-<td>Dominant</td>
-</tr>
-<tr>
-<td><strong>Menu Item Identity</strong></td>
-<td>Drives 98% of ML variance</td>
-<td>Dominant</td>
-</tr>
-<tr>
-<td><strong>State Minimum Wage</strong></td>
-<td>+<code>0.21</code> per <code>$</code>1.00 wage</td>
-<td>Moderate</td>
-</tr>
-<tr>
-<td><strong>US Region</strong></td>
-<td><code>$</code>1.43 spread (West-Midwest)</td>
-<td>Moderate</td>
-</tr>
-<tr>
-<td><strong>Local Income</strong></td>
-<td>+<code>$</code>0.51 per <code>$</code>10K income</td>
-<td>Weak</td>
-</tr>
-<tr>
-<td><strong>City Competition</strong></td>
-<td>+<code>$</code>0.042 per restaurant</td>
-<td>Weak (confounded)</td>
-</tr>
-</tbody>
-</table>
-<p><strong>The Surprising Truth:</strong> Fast-food pricing is <strong>product-driven, not market-driven</strong>. What you're buying (menu item) and where you're buying it from (brand) matter far more than where the restaurant is located. Geographic price discrimination exists but is secondary to menu composition and corporate strategy.</p>
-<hr/>
-<h3 id="Statistical-vs-Machine-Learning-Insights">Statistical vs Machine Learning Insights<a class="anchor-link" href="#Statistical-vs-Machine-Learning-Insights">¶</a></h3><p>Our analysis revealed a striking contrast between traditional statistics and machine learning:</p>
-<p><strong>Hypothesis Testing (H1-H5):</strong></p>
-<ul>
-<li>Focused on <strong>inference</strong> - understanding relationships</li>
-<li>Economic variables (income, wage, brand) explain <strong>7.7% of variance</strong></li>
-<li>Identified statistically significant but economically small effects</li>
-</ul>
-<p><strong>Machine Learning Models:</strong></p>
-<ul>
-<li>Focused on <strong>prediction</strong> - accurately estimating prices</li>
-<li>Adding BERT embeddings + target features → <strong>98.6% variance explained</strong></li>
-<li>XGBoost achieves MAE = $0.75 (5.8% error for typical $13 item)</li>
-</ul>
-<p><strong>Why the dramatic difference?</strong></p>
-<p>Statistical models tested macro-economic theories with aggregate variables. ML models incorporated <strong>item-specific information</strong> (menu text embeddings) that captures what's actually being sold. The finding: <strong>a pizza costs more than a soda</strong> explains far more variance than <strong>California is expensive</strong>.</p>
-<p><strong>Implication:</strong> Traditional economic factors matter for understanding pricing strategy, but item identity dominates actual price levels.</p>
-<hr/>
-<h3 id="Practical-Applications">Practical Applications<a class="anchor-link" href="#Practical-Applications">¶</a></h3><p><strong>For Restaurant Chains:</strong></p>
-<ul>
-<li>Use XGBoost model for <strong>dynamic pricing</strong> at new locations (±$0.75 accuracy)</li>
-<li>Optimize prices based on local wages rather than local income</li>
-<li>Maintain brand consistency while adjusting for regional cost differences</li>
-</ul>
-<p><strong>For Economists:</strong></p>
-<ul>
-<li>Evidence of <strong>partial minimum wage pass-through</strong> (21%) in fast-food sector</li>
-<li>Geographic price discrimination weaker than expected in national chains</li>
-<li>Corporate structure (franchise vs. corporate) significantly affects pricing behavior</li>
-</ul>
-<p><strong>For Consumers:</strong></p>
-<ul>
-<li>Expect <strong>11% higher prices</strong> in West region (primarily California effect)</li>
-<li>Restaurant brand matters more than location - switching chains saves more than switching neighborhoods</li>
-<li>High restaurant density signals expensive urban markets, not competitive bargains</li>
-</ul>
-<p><strong>For Data Scientists:</strong></p>
-<ul>
-<li>Text embeddings (BERT) crucial for real-world pricing models</li>
-<li>Gradient boosting (XGBoost/CatBoost) consistently outperforms neural networks for tabular data</li>
-<li>Domain knowledge guides feature engineering but ML captures patterns we couldn't hypothesize</li>
-</ul>
-<hr/>
-<h3 id="Limitations-&amp;-Future-Directions">Limitations &amp; Future Directions<a class="anchor-link" href="#Limitations-&amp;-Future-Directions">¶</a></h3><p><strong>Current Limitations:</strong></p>
-<ol>
-<li><strong>Three chains only</strong>: Results may not generalize to McDonald's, Burger King, Subway, etc.</li>
-<li><strong>Cross-sectional data</strong>: No temporal patterns (prices change over time with inflation, promotions)</li>
-<li><strong>Aggregated economics</strong>: ZIP-level income misses neighborhood variation within ZIP codes</li>
-<li><strong>No supply chain data</strong>: Can't measure ingredient costs, distributor prices, or logistics</li>
-</ol>
-<p><strong>Future Research Opportunities:</strong></p>
-<ol>
-<li><strong>Temporal Analysis</strong>: Add time dimension to study price changes, seasonal patterns, promotional strategies</li>
-<li><strong>Competitive Dynamics</strong>: Measure direct competitor effects (how McDonald's affects nearby Burger King)</li>
-<li><strong>Consumer Behavior</strong>: Integrate sales volume data to understand price elasticity</li>
-<li><strong>Transfer Learning</strong>: Fine-tune models on new restaurant chains with minimal training data</li>
-<li><strong>Causal Inference</strong>: Use natural experiments (minimum wage increases) for causal identification</li>
-<li><strong>Real-Time Pricing</strong>: Deploy models as APIs for dynamic pricing recommendations</li>
-</ol>
-<hr/>
-<h3 id="Final-Thoughts">Final Thoughts<a class="anchor-link" href="#Final-Thoughts">¶</a></h3><p>This analysis reveals that <strong>fast-food pricing is more standardized than economically optimal</strong>. Restaurants leave money on the table by not aggressively adjusting to local conditions - they could charge more in wealthy areas but maintain uniform pricing for brand consistency and operational simplicity.</p>
-<p>This tutorial demonstrated how modern data science combines:</p>
-<ul>
-<li><strong>Web scraping</strong> for large-scale data collection</li>
-<li><strong>Statistical testing</strong> for rigorous hypothesis validation</li>
-<li><strong>Machine learning</strong> for accurate prediction</li>
-<li><strong>Domain knowledge</strong> for meaningful interpretation</li>
-</ul>
-<p>By integrating these approaches, we answered real-world economic questions with practical implications for business strategy and public policy.</p>
-<p>The code, data, and methods presented here provide a template for analyzing pricing in any consumer-facing industry. The principles of careful data integration, leakage prevention, and balanced interpretation apply broadly across data science applications.</p>
-<hr/>
-<p><strong>Thank you for following along with this tutorial. We hope these methods and insights prove valuable for your own data science projects.</strong></p>
-<hr/>
-<h2 id="8.-References-&amp;-Resources">8. References &amp; Resources<a class="anchor-link" href="#8.-References-&amp;-Resources">¶</a></h2><h3 id="Data-Sources">Data Sources<a class="anchor-link" href="#Data-Sources">¶</a></h3><ul>
-<li><a href="https://data.census.gov/map?q=Income+by+Zip+code+tabulation+area">US Census Bureau - ZIP Code Income Data</a></li>
-<li><a href="https://www.dol.gov/agencies/whd/mw-consolidated">Department of Labor - Minimum Wage by State</a></li>
-<li><a href="https://www.bls.gov/regions/mid-atlantic/">Bureau of Labor Statistics - Regional Food Prices</a><ul>
-<li><a href="https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandwest_table.htm">West Region</a></li>
-<li><a href="https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandsouth_table.htm">South Region</a></li>
-<li><a href="https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandmidwest_table.htm">Midwest Region</a></li>
-<li><a href="https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandnortheast_table.htm">Northeast Region</a></li>
-</ul>
-</li>
-</ul>
-<h3 id="Technical-Documentation">Technical Documentation<a class="anchor-link" href="#Technical-Documentation">¶</a></h3><ul>
-<li><a href="https://docs.python.org/3/">Python Documentation</a></li>
-<li><a href="https://pandas.pydata.org/docs/">Pandas Documentation</a></li>
-<li><a href="https://scikit-learn.org/stable/">Scikit-Learn Documentation</a></li>
-<li><a href="https://xgboost.readthedocs.io/">XGBoost Documentation</a></li>
-<li><a href="https://catboost.ai/docs/">CatBoost Documentation</a></li>
-<li><a href="https://pytorch.org/docs/">PyTorch Documentation</a></li>
-</ul>
-<h3 id="Statistical-Methods">Statistical Methods<a class="anchor-link" href="#Statistical-Methods">¶</a></h3><ul>
-<li>Statsmodels - <a href="https://www.statsmodels.org/stable/regression.html">OLS Regression</a></li>
-<li>SciPy - <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.f_oneway.html">ANOVA (F-test)</a></li>
-</ul>
-<h3 id="Related-Research">Related Research<a class="anchor-link" href="#Related-Research">¶</a></h3><ul>
-<li>Card, D., &amp; Krueger, A. B. (1994). "Minimum Wages and Employment: A Case Study of the Fast-Food Industry in New Jersey and Pennsylvania."</li>
-</ul>
-</div>
-</div>
-</div>
-</div>
-</main>
-
-<main><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -13801,7 +12190,7 @@ Shape X_test : (366879, 142)
 <h1 id="6.-Predictive-Modeling-with-Machine-Learning">6. Predictive Modeling with Machine Learning<a class="anchor-link" href="#6.-Predictive-Modeling-with-Machine-Learning">¶</a></h1><p>Having tested statistical relationships in Section 5, we now build predictive models to forecast menu prices. Our hypothesis testing found that economic variables (income, minimum wage, brand) explain only <strong>7.7% of price variance</strong> (H4). Machine learning can capture non-linear patterns, feature interactions, and text data (via BERT embeddings on menu item names) to achieve much higher predictive accuracy.</p>
 <p><strong>Success Criteria:</strong></p>
 <ul>
-<li>Target: MAE &lt; $1.50 (predictions within $1.50 of actual price)</li>
+<li>Target: MAE &lt; \$1.50 (predictions within \$1.50 of actual price)</li>
 <li>Target: R² &gt; 0.80 (explain 80%+ of variance)</li>
 </ul>
 <p><strong>Models We'll Train:</strong></p>
@@ -15634,6 +14023,178 @@ For example, when doing 'df[col].method(value, inplace=True)', try using 'df.met
 <li><strong>Monitoring</strong>: Track prediction errors in production to detect model drift</li>
 </ul>
 <p>This inference system enables dynamic pricing recommendations for new restaurant locations with 75-cent average error.</p>
+
+    
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<hr/>
+<h2 id="7.-Conclusions-&amp;-Key-Insights">7. Conclusions &amp; Key Insights<a class="anchor-link" href="#7.-Conclusions-&amp;-Key-Insights">¶</a></h2><p>This tutorial investigated the economic and geographic factors that influence fast-food menu pricing across 6,700+ locations in the United States. We applied the complete data science lifecycle - from web scraping and data integration to statistical hypothesis testing and machine learning - to answer our core research questions.</p>
+<h3 id="Research-Questions-Answered">Research Questions Answered<a class="anchor-link" href="#Research-Questions-Answered">¶</a></h3><p><strong>1. Do restaurants charge more in wealthier areas? (Demand-Side)</strong></p>
+<p><strong>Answer:</strong> Yes, but the effect is <strong>surprisingly weak</strong>.</p>
+<p>Our multivariate regression (H4) found that each $10,000 increase in median household income is associated with only a <strong>$0.51 price increase</strong> - economically negligible. While statistically significant (p &lt; 0.001), this suggests fast-food chains prioritize <strong>pricing consistency</strong> over local market optimization. Restaurants don't fine-tune prices to local wealth the way luxury goods or real estate does.</p>
+<p><strong>2. Do higher labor costs get passed to consumers? (Supply-Side)</strong></p>
+<p><strong>Answer:</strong> Yes, with <strong>moderate pass-through rates</strong>.</p>
+<p>Each $1.00 increase in state minimum wage is associated with a <strong>$0.21 price increase</strong>, representing approximately 21% pass-through of labor costs. For example, California's 16.50 dollar minimum wage (vs Texas's $7.25) predicts a <strong>$1.93 price premium</strong> per item. This is consistent with economic research showing partial (not full) cost pass-through in competitive markets.</p>
+<p><strong>3. Do business models affect pricing? (Corporate vs Franchise)</strong></p>
+<p><strong>Answer:</strong> Yes - <strong>brand identity dominates all other factors</strong>.</p>
+<p>Even after controlling for income and wages, Domino's charges <strong>$2.89 more</strong> and Papa John's charges <strong>$2.44 more</strong> than Chipotle per menu item. This difference (20-25% premium) far exceeds effects from local economics. Corporate-owned Chipotle maintains tighter, lower pricing, while franchise-dominated pizza chains show greater regional variation and higher average prices.</p>
+<p><strong>4. Do different regions show systematic pricing patterns? (Geographic)</strong></p>
+<p><strong>Answer:</strong> Yes - the <strong>West region has a 11% premium</strong>.</p>
+<p>Regional ANOVA (H3) revealed significant differences: West (14.34) &gt; South (13.30) &gt; Northeast (13.20) &gt; Midwest (12.91). The ~$1.43 spread reflects California's outsized influence - high minimum wages, elevated costs, and wealthy markets drive Western prices up systematically.</p>
+<p><strong>5. Does local competition affect prices?</strong></p>
+<p><strong>Answer:</strong> No - competition shows a <strong>paradoxical positive effect</strong>.</p>
+<p>City-level analysis (H5) found that cities with more restaurants have <strong>slightly higher</strong> prices (coefficient = +0.042), not lower. This is because restaurant count proxies for <strong>urbanization and cost structure</strong>, not competitive pressure. Dense metros have both high restaurant density and elevated operating costs. Fast-food chains maintain sticky pricing strategies and rarely engage in local price wars.</p>
+<hr/>
+<h3 id="Key-Findings-Summary">Key Findings Summary<a class="anchor-link" href="#Key-Findings-Summary">¶</a></h3><p><strong>What Matters Most for Fast-Food Pricing:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Factor</th>
+<th>Effect Size</th>
+<th>Importance Ranking</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Restaurant Brand</strong></td>
+<td>+<code>$</code>2.44-<code>$</code>2.89</td>
+<td>Dominant</td>
+</tr>
+<tr>
+<td><strong>Menu Item Identity</strong></td>
+<td>Drives 98% of ML variance</td>
+<td>Dominant</td>
+</tr>
+<tr>
+<td><strong>State Minimum Wage</strong></td>
+<td>+<code>0.21</code> per <code>$</code>1.00 wage</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td><strong>US Region</strong></td>
+<td><code>$</code>1.43 spread (West-Midwest)</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td><strong>Local Income</strong></td>
+<td>+<code>$</code>0.51 per <code>$</code>10K income</td>
+<td>Weak</td>
+</tr>
+<tr>
+<td><strong>City Competition</strong></td>
+<td>+<code>$</code>0.042 per restaurant</td>
+<td>Weak (confounded)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The Surprising Truth:</strong> Fast-food pricing is <strong>product-driven, not market-driven</strong>. What you're buying (menu item) and where you're buying it from (brand) matter far more than where the restaurant is located. Geographic price discrimination exists but is secondary to menu composition and corporate strategy.</p>
+<hr/>
+<h3 id="Statistical-vs-Machine-Learning-Insights">Statistical vs Machine Learning Insights<a class="anchor-link" href="#Statistical-vs-Machine-Learning-Insights">¶</a></h3><p>Our analysis revealed a striking contrast between traditional statistics and machine learning:</p>
+<p><strong>Hypothesis Testing (H1-H5):</strong></p>
+<ul>
+<li>Focused on <strong>inference</strong> - understanding relationships</li>
+<li>Economic variables (income, wage, brand) explain <strong>7.7% of variance</strong></li>
+<li>Identified statistically significant but economically small effects</li>
+</ul>
+<p><strong>Machine Learning Models:</strong></p>
+<ul>
+<li>Focused on <strong>prediction</strong> - accurately estimating prices</li>
+<li>Adding BERT embeddings + target features → <strong>98.6% variance explained</strong></li>
+<li>XGBoost achieves MAE = $0.75 (5.8% error for typical $13 item)</li>
+</ul>
+<p><strong>Why the dramatic difference?</strong></p>
+<p>Statistical models tested macro-economic theories with aggregate variables. ML models incorporated <strong>item-specific information</strong> (menu text embeddings) that captures what's actually being sold. The finding: <strong>a pizza costs more than a soda</strong> explains far more variance than <strong>California is expensive</strong>.</p>
+<p><strong>Implication:</strong> Traditional economic factors matter for understanding pricing strategy, but item identity dominates actual price levels.</p>
+<hr/>
+<h3 id="Practical-Applications">Practical Applications<a class="anchor-link" href="#Practical-Applications">¶</a></h3><p><strong>For Restaurant Chains:</strong></p>
+<ul>
+<li>Use XGBoost model for <strong>dynamic pricing</strong> at new locations (±$0.75 accuracy)</li>
+<li>Optimize prices based on local wages rather than local income</li>
+<li>Maintain brand consistency while adjusting for regional cost differences</li>
+</ul>
+<p><strong>For Economists:</strong></p>
+<ul>
+<li>Evidence of <strong>partial minimum wage pass-through</strong> (21%) in fast-food sector</li>
+<li>Geographic price discrimination weaker than expected in national chains</li>
+<li>Corporate structure (franchise vs. corporate) significantly affects pricing behavior</li>
+</ul>
+<p><strong>For Consumers:</strong></p>
+<ul>
+<li>Expect <strong>11% higher prices</strong> in West region (primarily California effect)</li>
+<li>Restaurant brand matters more than location - switching chains saves more than switching neighborhoods</li>
+<li>High restaurant density signals expensive urban markets, not competitive bargains</li>
+</ul>
+<p><strong>For Data Scientists:</strong></p>
+<ul>
+<li>Text embeddings (BERT) crucial for real-world pricing models</li>
+<li>Gradient boosting (XGBoost/CatBoost) consistently outperforms neural networks for tabular data</li>
+<li>Domain knowledge guides feature engineering but ML captures patterns we couldn't hypothesize</li>
+</ul>
+<hr/>
+<h3 id="Limitations-&amp;-Future-Directions">Limitations &amp; Future Directions<a class="anchor-link" href="#Limitations-&amp;-Future-Directions">¶</a></h3><p><strong>Current Limitations:</strong></p>
+<ol>
+<li><strong>Three chains only</strong>: Results may not generalize to McDonald's, Burger King, Subway, etc.</li>
+<li><strong>Cross-sectional data</strong>: No temporal patterns (prices change over time with inflation, promotions)</li>
+<li><strong>Aggregated economics</strong>: ZIP-level income misses neighborhood variation within ZIP codes</li>
+<li><strong>No supply chain data</strong>: Can't measure ingredient costs, distributor prices, or logistics</li>
+</ol>
+<p><strong>Future Research Opportunities:</strong></p>
+<ol>
+<li><strong>Temporal Analysis</strong>: Add time dimension to study price changes, seasonal patterns, promotional strategies</li>
+<li><strong>Competitive Dynamics</strong>: Measure direct competitor effects (how McDonald's affects nearby Burger King)</li>
+<li><strong>Consumer Behavior</strong>: Integrate sales volume data to understand price elasticity</li>
+<li><strong>Transfer Learning</strong>: Fine-tune models on new restaurant chains with minimal training data</li>
+<li><strong>Causal Inference</strong>: Use natural experiments (minimum wage increases) for causal identification</li>
+<li><strong>Real-Time Pricing</strong>: Deploy models as APIs for dynamic pricing recommendations</li>
+</ol>
+<hr/>
+<h3 id="Final-Thoughts">Final Thoughts<a class="anchor-link" href="#Final-Thoughts">¶</a></h3><p>This analysis reveals that <strong>fast-food pricing is more standardized than economically optimal</strong>. Restaurants leave money on the table by not aggressively adjusting to local conditions - they could charge more in wealthy areas but maintain uniform pricing for brand consistency and operational simplicity.</p>
+<p>This tutorial demonstrated how modern data science combines:</p>
+<ul>
+<li><strong>Web scraping</strong> for large-scale data collection</li>
+<li><strong>Statistical testing</strong> for rigorous hypothesis validation</li>
+<li><strong>Machine learning</strong> for accurate prediction</li>
+<li><strong>Domain knowledge</strong> for meaningful interpretation</li>
+</ul>
+<p>By integrating these approaches, we answered real-world economic questions with practical implications for business strategy and public policy.</p>
+<p>The code, data, and methods presented here provide a template for analyzing pricing in any consumer-facing industry. The principles of careful data integration, leakage prevention, and balanced interpretation apply broadly across data science applications.</p>
+<hr/>
+<p><strong>Thank you for following along with this tutorial. We hope these methods and insights prove valuable for your own data science projects.</strong></p>
+<hr/>
+<h2 id="8.-References-&amp;-Resources">8. References &amp; Resources<a class="anchor-link" href="#8.-References-&amp;-Resources">¶</a></h2><h3 id="Data-Sources">Data Sources<a class="anchor-link" href="#Data-Sources">¶</a></h3><ul>
+<li><a href="https://data.census.gov/map?q=Income+by+Zip+code+tabulation+area">US Census Bureau - ZIP Code Income Data</a></li>
+<li><a href="https://www.dol.gov/agencies/whd/mw-consolidated">Department of Labor - Minimum Wage by State</a></li>
+<li><a href="https://www.bls.gov/regions/mid-atlantic/">Bureau of Labor Statistics - Regional Food Prices</a><ul>
+<li><a href="https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandwest_table.htm">West Region</a></li>
+<li><a href="https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandsouth_table.htm">South Region</a></li>
+<li><a href="https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandmidwest_table.htm">Midwest Region</a></li>
+<li><a href="https://www.bls.gov/regions/mid-atlantic/data/averageretailfoodandenergyprices_usandnortheast_table.htm">Northeast Region</a></li>
+</ul>
+</li>
+</ul>
+<h3 id="Technical-Documentation">Technical Documentation<a class="anchor-link" href="#Technical-Documentation">¶</a></h3><ul>
+<li><a href="https://docs.python.org/3/">Python Documentation</a></li>
+<li><a href="https://pandas.pydata.org/docs/">Pandas Documentation</a></li>
+<li><a href="https://scikit-learn.org/stable/">Scikit-Learn Documentation</a></li>
+<li><a href="https://xgboost.readthedocs.io/">XGBoost Documentation</a></li>
+<li><a href="https://catboost.ai/docs/">CatBoost Documentation</a></li>
+<li><a href="https://pytorch.org/docs/">PyTorch Documentation</a></li>
+</ul>
+<h3 id="Statistical-Methods">Statistical Methods<a class="anchor-link" href="#Statistical-Methods">¶</a></h3><ul>
+<li>Statsmodels - <a href="https://www.statsmodels.org/stable/regression.html">OLS Regression</a></li>
+<li>SciPy - <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.f_oneway.html">ANOVA (F-test)</a></li>
+</ul>
+<h3 id="Related-Research">Related Research<a class="anchor-link" href="#Related-Research">¶</a></h3><ul>
+<li>Card, D., &amp; Krueger, A. B. (1994). "Minimum Wages and Employment: A Case Study of the Fast-Food Industry in New Jersey and Pennsylvania."</li>
+</ul>
 </div>
 </div>
 </div>
