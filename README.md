@@ -105,7 +105,7 @@ This folder contains:
            ├── Food_retail_prices_South_region_US.csv
            ├── Food_retail_prices_West_region_US.csv
            └── zip_income_data.csv
-           └──all_dataset.csv
+           └── all_dataset.csv
    ```
 
 ---
