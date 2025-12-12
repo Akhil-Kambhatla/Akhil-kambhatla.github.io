@@ -108,9 +108,11 @@ This folder contains:
    ```
 
 3. Upload all 10 files:
+   - We have divided the Data into 2 parts - Data 1 and Data 2 (both of them being zip files)
+   - Decompress them and download all the files locally (for the time being)
    - Navigate to `My Drive/602_project/Data/`
    - Click "+ New" → "File upload"
-   - Select all 10 CSV files
+   - Select all files
    - Wait for upload to complete
 
 4. Your final structure should be:
