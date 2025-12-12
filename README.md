@@ -80,7 +80,7 @@ This folder contains:
 - **USDA rural-urban codes** (1 file)
 - **Regional food retail prices** (4 files): West, South, Midwest, Northeast regions
 - **US ZIP codes** (1 file): All ZIP codes for mapping
-- **All Dataset file taht we store post processing.
+- **All Dataset** file that we store post processing.
 **Total: 11 data files**
 
 ### Step 2: Add files to your Drive
