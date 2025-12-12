@@ -15967,7 +15967,7 @@ restaurant_id
 <li><strong>Within-restaurant variation:</strong> The standard deviation plot shows most restaurants maintain relatively consistent pricing across their menu (standard deviation around $3-5), with some outliers showing high variance</li>
 </ul>
 <p><strong>Pricing Extremes:</strong></p>
-<p>The five most expensive restaurants (average price ~$22) and five least expensive (average price ~$8) differ by nearly 3x. This dramatic range suggests either:</p>
+<p>The five most expensive restaurants (average price ~\$22) and five least expensive (average price ~\$8) differ by nearly 3x. This dramatic range suggests either:</p>
 <ol>
 <li>Different menu compositions (premium items vs. budget options)</li>
 <li>Geographic pricing discrimination (high-cost vs. low-cost markets)</li>
@@ -17056,14 +17056,14 @@ Residual            1.551667e+08  1718215.0           NaN           NaN
 </table>
 <hr/>
 <p><strong>Key Findings:</strong></p>
-<p><strong>1. Income Effect (Demand-Side):</strong> Each $10,000 increase in median household income is associated with only a <strong>$0.025 price increase</strong> (coefficient = 2.465e-06 × 10,000 = 0.0246). This is economically negligible - restaurants barely adjust prices based on local wealth.</p>
-<p><strong>2. Minimum Wage Effect (Supply-Side):</strong> Each $1.00 increase in state minimum wage is associated with a <strong>$0.16 price increase</strong>. This represents ~16% pass-through of labor costs to consumers. Example: California's $16.50 wage vs Texas's $7.25 wage ($9.25 difference) predicts a <strong>$1.48</strong> price premium in California (0.16 × 9.25 = 1.48).</p>
-<p><strong>3. Restaurant Brand Dominance:</strong> Even controlling for income and wages, <strong>Domino's charges $5.89 more</strong> and <strong>Papa John's charges $6.69 more</strong> than Chipotle per menu item. Brand identity has a <strong>far larger impact</strong> (25-30× larger) than local economic conditions.</p>
+<p><strong>1. Income Effect (Demand-Side):</strong> Each \$10,000 increase in median household income is associated with only a <strong>$0.025 price increase</strong> (coefficient = 2.465e-06 × 10,000 = 0.0246). This is economically negligible - restaurants barely adjust prices based on local wealth.</p>
+<p><strong>2. Minimum Wage Effect (Supply-Side):</strong> Each \$1.00 increase in state minimum wage is associated with a <strong>$0.16 price increase</strong>. This represents ~16% pass-through of labor costs to consumers. Example: California's \$16.50 wage vs Texas's \$7.25 wage (\$9.25 difference) predicts a <strong>\$1.48</strong> price premium in California (0.16 × 9.25 = 1.48).</p>
+<p><strong>3. Restaurant Brand Dominance:</strong> Even controlling for income and wages, <strong>Domino's charges \$5.89 more</strong> and <strong>Papa John's charges \$6.69 more</strong> than Chipotle per menu item. Brand identity has a <strong>far larger impact</strong> (25-30× larger) than local economic conditions.</p>
 <hr/>
 <p><strong>Conclusion:</strong></p>
 <p>All predictors are statistically significant, but their practical importance varies dramatically:</p>
 <ul>
-<li><strong>Restaurant chain</strong> (+$5.89-$6.69) &gt;&gt; <strong>Minimum wage</strong> (+$0.16 per dollar) &gt;&gt;&gt; <strong>Income</strong> (+$0.0025 per $1,000)</li>
+<li><strong>Restaurant chain</strong> (+\$5.89-\$6.69) &gt;&gt; <strong>Minimum wage</strong> (+\$0.16 per dollar) &gt;&gt;&gt; <strong>Income</strong> (+\$0.0025 per \$1,000)</li>
 </ul>
 <p>The brand effect is approximately <strong>37× larger</strong> than the wage effect and <strong>2,400× larger</strong> than the income effect, confirming that <strong>what you buy and where you buy from matters far more than where the restaurant is located</strong>.</p>
 </div>
@@ -17204,13 +17204,13 @@ Residual          22826.498075  3719.0        NaN           NaN
 <td><strong>restaurant_count</strong></td>
 <td><strong>+0.042</strong></td>
 <td>&lt; 0.001</td>
-<td>Each additional restaurant adds $0.042 to city mean price</td>
+<td>Each additional restaurant adds \$0.042 to city mean price</td>
 </tr>
 <tr>
 <td><strong>mean_income</strong></td>
 <td><strong>-0.000006</strong></td>
 <td>&lt; 0.001</td>
-<td>Each $1,000 income reduces price by $0.006</td>
+<td>Each \$1,000 income reduces price by \$0.006</td>
 </tr>
 </tbody>
 </table>
@@ -17321,7 +17321,7 @@ Residual          22826.498075  3719.0        NaN           NaN
 <h1 id="6.-Predictive-Modeling-with-Machine-Learning">6. Predictive Modeling with Machine Learning<a class="anchor-link" href="#6.-Predictive-Modeling-with-Machine-Learning">¶</a></h1><p>Having tested statistical relationships in Section 5, we now build predictive models to forecast menu prices. Our hypothesis testing found that economic variables (income, minimum wage, brand) explain only <strong>7.7% of price variance</strong> (H4). Machine learning can capture non-linear patterns, feature interactions, and text data (via BERT embeddings on menu item names) to achieve much higher predictive accuracy.</p>
 <p><strong>Success Criteria:</strong></p>
 <ul>
-<li>Target: MAE &lt; $1.50 (predictions within $1.50 of actual price)</li>
+<li>Target: MAE &lt; \$1.50 (predictions within \$1.50 of actual price)</li>
 <li>Target: R² &gt; 0.80 (explain 80%+ of variance)</li>
 </ul>
 <p><strong>Models We'll Train:</strong></p>
